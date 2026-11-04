@@ -1,0 +1,31 @@
+{
+  "name": "painel-urutau",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Painel de gestão que a Urutau entrega para as empresas. Lê o mesmo banco do app-urutau (que é quem cria e migra as tabelas).",
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start",
+    "lint": "tsc --noEmit",
+    "sincronizar": "node scripts/sincronizar.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@node-rs/argon2": "^2.2.2",
+    "drizzle-orm": "^0.45.4",
+    "motion": "^12.43.0",
+    "next": "^16.4.2",
+    "postgres": "^3.4.9",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
+}
