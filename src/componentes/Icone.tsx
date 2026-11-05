@@ -13,6 +13,11 @@ const CAMINHOS = {
   enviar: "M4 12 20 4l-6 16-3-7z",
   voltar: "M19 12H5M11 6l-6 6 6 6",
   telefone: "M5 4h3.5l1.5 4-2 1.5a11 11 0 0 0 6.5 6.5l1.5-2 4 1.5V19a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1Z",
+  carro: "M5 16.5V12l1.8-4.6A2 2 0 0 1 8.7 6h6.6a2 2 0 0 1 1.9 1.4L19 12v4.5M5 12h14M5 16.5h14M7.5 16.5v2M16.5 16.5v2M8 14h.1M16 14h.1",
+  caixa: "M4 8 12 4l8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8",
+  documento: "M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5",
+  receita: "M6 10h12l-1.2 9.2a1 1 0 0 1-1 .8H8.2a1 1 0 0 1-1-.8zM9 10a3 3 0 0 1 6 0M12 4v2",
+  ajustes: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8",
 } as const;
 
 export type NomeIcone = keyof typeof CAMINHOS;

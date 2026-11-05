@@ -9,6 +9,7 @@ import { listarParaConferir } from "@/lib/servidor/conferencia";
 import { carregarPainel } from "@/lib/servidor/painel";
 import { exigirAcesso } from "@/servidor/acesso";
 import { faturamentoDoMesAnteriorAteODia } from "@/servidor/comparativo";
+import { pacoteDe } from "@/pacotes/catalogo";
 import { BotaoLancar } from "@/componentes/BotaoLancar";
 import { Icone } from "@/componentes/Icone";
 import { haQuanto, iniciais, porcento, reais, reaisCurto, tomDe } from "@/componentes/formato";
@@ -85,6 +86,7 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
   ]);
 
   const base = `/${empresaId}`;
+  const pacote = pacoteDe(empresa.perfil);
   const anterior = grafico.at(-2);
   const pe = r.pontoEquilibrio;
   const fracaoPe = pe.tipo === "valor" && pe.valor > 0 ? r.faturamento / pe.valor : 0;
@@ -301,6 +303,25 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
             </p>
           </Cartao>
         </div>
+
+        {pacote.abas.length > 0 && (
+          <Cartao classe="c12" titulo={`Do seu negócio · ${pacote.nome}`} acao={pode(papel, "gerenciar") ? <LinkPara href={`${base}/pacote`}>Trocar pacote</LinkPara> : undefined}>
+            <ul className="abas-negocio">
+              {pacote.abas.map((a) => (
+                <li key={a.id}>
+                  <Link href={a.rota ? `${base}/${a.rota}` : `${base}/n/${a.id}`}>
+                    <Icone nome={a.icone} />
+                    <span>
+                      <strong>{a.titulo}</strong>
+                      <span className="nota">{a.desc}</span>
+                    </span>
+                    {!a.rota && <small className="em-breve">em breve</small>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Cartao>
+        )}
       </Entrada>
     </>
   );

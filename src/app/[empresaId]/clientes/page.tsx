@@ -9,6 +9,7 @@ import { comprasDoCliente, listarClientes, obterCliente } from "@/lib/servidor/c
 import { formatarTelefone } from "@/lib/validacao";
 import { exigirAcesso } from "@/servidor/acesso";
 import { JanelaCliente } from "@/componentes/editar";
+import { pacoteDe } from "@/pacotes/catalogo";
 import { Icone } from "@/componentes/Icone";
 import { salvarCliente } from "../acoes";
 import { Topo, endereco } from "@/componentes/Topo";
@@ -60,7 +61,7 @@ export default async function Clientes({ params, searchParams }: { params: Promi
 
   return (
     <>
-      <Topo titulo="Clientes" sub={q ? `Busca por "${q}"` : "Quem já comprou ou falou com a empresa"}>
+      <Topo titulo={pacoteDe(ctx.empresa.perfil).vocab.clientes} sub={q ? `Busca por "${q}"` : "Quem já comprou ou falou com a empresa"}>
         {podeEditar && (
           <div className="topo-acoes">
             <JanelaCliente acao={salvarCliente.bind(null, empresaId, null)} rotulo="+ Novo cliente" titulo="Novo cliente" lista={base} />

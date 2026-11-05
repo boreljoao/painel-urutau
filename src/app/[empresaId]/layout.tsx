@@ -5,6 +5,7 @@ import { resumoDaLoja } from "@/lib/servidor/atendimento";
 import { contarParaConferir } from "@/lib/servidor/conferencia";
 import { exigirAcesso } from "@/servidor/acesso";
 import { corDoPerfil } from "@/servidor/marca";
+import { pacoteDe } from "@/pacotes/catalogo";
 import { Mascote } from "@/componentes/Mascote";
 import { Menu, type ItemMenu } from "@/componentes/Menu";
 import { iniciais, tomDe } from "@/componentes/formato";
@@ -21,12 +22,16 @@ export default async function LayoutEmpresa({ children, params }: { children: Re
   ]);
   const esperando = atendimento ? atendimento.aprovar + atendimento.comEquipe + atendimento.naoLidas : 0;
   const base = `/${empresaId}`;
+  const pacote = pacoteDe(empresa.perfil);
   const itens: ItemMenu[] = [
     pode(papel, "ver_painel") && { href: base, nome: "Visão geral", icone: "inicio" as const },
-    pode(papel, "ver_lancamentos") && { href: `${base}/vendas`, nome: "Vendas", icone: "vendas" as const },
-    pode(papel, "ver_clientes") && { href: `${base}/clientes`, nome: "Clientes", icone: "clientes" as const },
+    pode(papel, "ver_lancamentos") && { href: `${base}/vendas`, nome: pacote.vocab.vendas, icone: "vendas" as const },
+    pode(papel, "ver_clientes") && { href: `${base}/clientes`, nome: pacote.vocab.clientes, icone: "clientes" as const },
     temWhatsapp && pode(papel, "ver_clientes") && { href: `${base}/whatsapp`, nome: "WhatsApp", icone: "whatsapp" as const },
     pode(papel, "ver_painel") && { href: `${base}/financeiro`, nome: "Financeiro", icone: "financeiro" as const },
+    // As abas do ramo: o que faz este painel ser de uma confeitaria, de uma revenda, de um consultório…
+    ...pacote.abas.map((a) => ({ href: a.rota ? `${base}/${a.rota}` : `${base}/n/${a.id}`, nome: a.titulo, icone: a.icone, doNegocio: true, emBreve: !a.rota })),
+    pode(papel, "gerenciar") && { href: `${base}/pacote`, nome: "Seu pacote", icone: "ajustes" as const, doNegocio: true },
   ].filter(Boolean) as ItemMenu[];
   const marca = corDoPerfil(empresa.perfil);
 

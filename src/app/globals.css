@@ -176,6 +176,19 @@ select {
 .menu a span {
   flex: 1;
 }
+/* As abas do ramo vêm depois das telas de todo negócio, separadas por um respiro. */
+.menu a:not(.do-negocio) + a.do-negocio {
+  margin-top: 14px;
+}
+.menu .em-breve {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--tom);
+  color: var(--suave);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .selo {
   display: inline-grid;
   place-items: center;
@@ -1374,6 +1387,10 @@ select {
   .menu a span {
     flex: none;
   }
+  /* No celular a barra de baixo fica só com as telas de todo dia; as do ramo estão na Visão geral. */
+  .menu a.do-negocio {
+    display: none;
+  }
   .menu .selo {
     position: absolute;
     top: 4px;
@@ -2191,6 +2208,176 @@ ul.lista-escolha,
 .variacao.igual {
   background: var(--tom);
   color: var(--suave);
+}
+/* Pacotes: criar empresa, trocar de pacote e as abas do ramo. */
+.comecar {
+  width: min(720px, 100%);
+}
+.comecar-form {
+  display: grid;
+  gap: 16px;
+}
+.comecar-form textarea {
+  resize: vertical;
+}
+.comecar-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.duas-colunas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  gap: 12px;
+}
+.sugestao {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--cor-clara, #e5e7ef);
+}
+.sugestao .ic {
+  flex: none;
+  margin-top: 3px;
+  color: var(--cor, #141b34);
+}
+.pacotes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.pacote-opcao {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 14px;
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  background: var(--superficie);
+  cursor: pointer;
+}
+.pacote-opcao input {
+  position: absolute;
+  opacity: 0;
+}
+.pacote-opcao span {
+  color: var(--suave);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pacote-opcao em {
+  justify-self: start;
+  font-style: normal;
+}
+.pacote-opcao:has(:checked) {
+  border-color: var(--cor, #141b34);
+  box-shadow: inset 0 0 0 1px var(--cor, #141b34);
+  background: var(--cor-clara, #e5e7ef);
+}
+.pacote-opcao:has(:focus-visible) {
+  outline: 2px solid var(--cor, #141b34);
+  outline-offset: 2px;
+}
+.pacote-detalhe {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--tom);
+}
+.pacote-detalhe h3 {
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+.lista-check {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+.lista-check li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.lista-check .ic {
+  flex: none;
+  margin-top: 2px;
+  color: var(--cor);
+}
+.lista-check .em-breve,
+.abas-negocio .em-breve {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--suave);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.abas-negocio {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.abas-negocio a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--tom);
+}
+.abas-negocio a > .ic {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--cor);
+}
+.abas-negocio a > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.abas-negocio a:hover {
+  filter: brightness(0.97);
+}
+.aba-breve {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.aba-breve h2 {
+  margin: 10px 0 4px;
+}
+.aba-icone {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--cor-clara);
+  color: var(--cor);
+}
+.aba-icone .ic {
+  width: 28px;
+  height: 28px;
+}
+@media (max-width: 600px) {
+  .aba-breve {
+    flex-direction: column;
+  }
 }
 .precisa-hoje {
   display: flex;

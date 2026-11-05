@@ -13,7 +13,7 @@ if (!existsSync(origem)) throw new Error(`Não achei o app-urutau em ${origem}`)
 // Caminhos (dentro de src/) que o painel não usa e que não podem ficar num repositório público.
 const SEM_USO = [
   "lib/relatorios", // PDFs: precisam do @react-pdf e ficam no app
-  "db/padroes.ts",
+  // db/padroes.ts vem junto: o painel cria empresas com as categorias e fontes padrão.
   "lib/calculos/provisoes.ts",
   "lib/receita.ts",
   "lib/textos-folha.ts",

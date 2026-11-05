@@ -10,6 +10,7 @@ const CORES: Record<Perfil, { cor: string; clara: string }> = {
   consultorio: { cor: "#2e5e57", clara: "#e1ece9" },
   servicos: { cor: "#7a4b1f", clara: "#f3e9df" },
   alimentacao: { cor: "#9a3b1b", clara: "#f6e5de" },
+  contabilidade: { cor: "#3d3a8c", clara: "#e8e7f6" },
   financas: { cor: "#141b34", clara: "#e5e7ef" },
 };
 

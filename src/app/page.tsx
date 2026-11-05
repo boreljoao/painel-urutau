@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { NOME_PAPEL } from "@/lib/permissoes";
-import { PERFIS } from "@/lib/perfis";
+import { pacoteDe } from "@/pacotes/catalogo";
 import { exigirUsuario } from "@/lib/servidor/auth";
 import { empresasDoUsuario, telaInicial } from "@/servidor/acesso";
 import { corDoPerfil } from "@/servidor/marca";
@@ -18,7 +18,7 @@ export default async function Inicio() {
     <main className="entrar">
       <section className="entrar-cartao escolher" aria-labelledby="escolher-titulo">
         <h1 id="escolher-titulo">Olá, {usuario.nome.split(" ")[0]}</h1>
-        <p className="nota">{lista.length ? "Escolha a empresa." : "Sua conta ainda não está em nenhuma empresa. Fale com a Urutau."}</p>
+        <p className="nota">{lista.length ? "Escolha a empresa." : "Sua conta ainda não tem nenhuma empresa. Crie a primeira: o painel se monta para o seu ramo."}</p>
         <ul className="lista-empresas">
           {lista.map((e) => (
             <li key={e.id}>
@@ -27,7 +27,7 @@ export default async function Inicio() {
                 <span>
                   <strong>{e.nome}</strong>
                   <span className="nota">
-                    {PERFIS[e.perfil].nome}
+                    {pacoteDe(e.perfil).nome}
                     {e.cidade ? ` · ${e.cidade}` : ""} · {NOME_PAPEL[e.papel]}
                   </span>
                 </span>
@@ -35,6 +35,9 @@ export default async function Inicio() {
             </li>
           ))}
         </ul>
+        <Link className="botao" href="/nova-empresa">
+          + Criar {lista.length ? "outra" : "minha"} empresa
+        </Link>
         <form action={sair}>
           <button className="botao-claro">Sair</button>
         </form>

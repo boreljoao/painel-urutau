@@ -9,6 +9,7 @@ import { marcarVendaRecebida } from "@/lib/servidor/acoes-lancamentos";
 import { listarVendasDoMes } from "@/lib/servidor/lancamentos";
 import { exigirAcesso } from "@/servidor/acesso";
 import { BotaoLancar } from "@/componentes/BotaoLancar";
+import { pacoteDe } from "@/pacotes/catalogo";
 import { AvisoLancamento, EditorLancamento } from "@/componentes/EditorLancamento";
 import { Icone } from "@/componentes/Icone";
 import { SeletorMes, Topo, endereco } from "@/componentes/Topo";
@@ -76,7 +77,7 @@ export default async function Vendas({
 
   return (
     <>
-      <Topo titulo="Vendas" sub={`${nomeDoMes(mes)}${mes === atual ? ", até hoje" : ""}${veTudo ? "" : " · só as que você lançou"}`}>
+      <Topo titulo={pacoteDe(ctx.empresa.perfil).vocab.vendas} sub={`${nomeDoMes(mes)}${mes === atual ? ", até hoje" : ""}${veTudo ? "" : " · só as que você lançou"}`}>
         <div className="topo-acoes">
           <SeletorMes mes={mes} atual={atual} link={(m) => link({ mes: m === atual ? undefined : m })} />
           <a className="botao-claro" href={`/${empresaId}/exportar?tipo=vendas&mes=${mes}`}>
