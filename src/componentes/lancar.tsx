@@ -80,20 +80,25 @@ function Campo({ rotulo, erro, children, largo }: { rotulo: string; erro?: strin
   );
 }
 
-function useSalvar(acao: AcaoForm, salvo: (t: string) => void) {
+export function Campo2({ rotulo, erro, children, largo }: { rotulo: string; erro?: string; children: React.ReactNode; largo?: boolean }) {
+  return Campo({ rotulo, erro, children, largo });
+}
+
+export function useSalvar(acao: AcaoForm, salvo: (t: string, valores?: Record<string, string>) => void, inicial?: Record<string, string>) {
   const [estado, enviar, pendente] = useActionState(acao, {});
   // O React limpa o formulário depois de enviar; com erro, remonta com o que a pessoa tinha digitado.
   const [versao, setVersao] = useState(0);
   useEffect(() => {
-    if (estado.ok) salvo(estado.ok);
+    if (estado.ok) salvo(estado.ok, estado.valores);
     else if (estado.erros) setVersao((x) => x + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
-  return { erros: estado.erros ?? {}, v: estado.valores ?? {}, enviar, pendente, versao };
+  return { erros: estado.erros ?? {}, v: estado.valores ?? inicial ?? {}, enviar, pendente, versao };
 }
 
-function FormVenda({ hoje, fontes, clientes, lancarVenda, salvo }: Opcoes & { salvo: (t: string) => void }) {
-  const { erros, v, enviar, pendente, versao } = useSalvar(lancarVenda, salvo);
+/** Os mesmos formulários servem para lançar e para editar: na edição, `inicial` traz os valores gravados. */
+export function FormVenda({ hoje, fontes, clientes, lancarVenda, salvo, inicial, rotulo = "Salvar venda" }: Opcoes & { salvo: (t: string) => void; inicial?: Record<string, string>; rotulo?: string }) {
+  const { erros, v, enviar, pendente, versao } = useSalvar(lancarVenda, salvo, inicial);
   const [status, setStatus] = useState(v.status ?? "recebido");
   return (
     <form key={versao} action={enviar} className="form-lancar">
@@ -133,6 +138,8 @@ function FormVenda({ hoje, fontes, clientes, lancarVenda, salvo }: Opcoes & { sa
           <input type="radio" name="status" value="a_receber" checked={status === "a_receber"} onChange={() => setStatus("a_receber")} /> Vai receber depois
         </label>
       </fieldset>
+      {/* Na edição de uma venda já recebida, mantém o dia em que o dinheiro entrou (pesa no caixa daquele mês). */}
+      {status === "recebido" && inicial?.status === "recebido" && inicial.dataRecebimento && <input type="hidden" name="dataRecebimento" value={inicial.dataRecebimento} />}
       {status === "a_receber" && (
         <Campo rotulo="Quando vai receber" erro={erros.dataRecebimento}>
           <input name="dataRecebimento" type="date" defaultValue={v.dataRecebimento} min={hoje} required />
@@ -154,14 +161,14 @@ function FormVenda({ hoje, fontes, clientes, lancarVenda, salvo }: Opcoes & { sa
         </p>
       )}
       <button className="botao largo" disabled={pendente}>
-        {pendente ? "Salvando…" : "Salvar venda"}
+        {pendente ? "Salvando…" : rotulo}
       </button>
     </form>
   );
 }
 
-function FormDespesa({ hoje, categorias, lancarDespesa, salvo }: Opcoes & { salvo: (t: string) => void }) {
-  const { erros, v, enviar, pendente, versao } = useSalvar(lancarDespesa, salvo);
+export function FormDespesa({ hoje, categorias, lancarDespesa, salvo, inicial, rotulo = "Salvar despesa" }: Opcoes & { salvo: (t: string) => void; inicial?: Record<string, string>; rotulo?: string }) {
+  const { erros, v, enviar, pendente, versao } = useSalvar(lancarDespesa, salvo, inicial);
   const [status, setStatus] = useState(v.status ?? "pago");
   return (
     <form key={versao} action={enviar} className="form-lancar">
@@ -195,6 +202,13 @@ function FormDespesa({ hoje, categorias, lancarDespesa, salvo }: Opcoes & { salv
           <input type="radio" name="status" value="a_pagar" checked={status === "a_pagar"} onChange={() => setStatus("a_pagar")} /> Vai pagar depois
         </label>
       </fieldset>
+      {/* Na edição de uma despesa já paga, mantém o vencimento e o dia do pagamento. */}
+      {status === "pago" && inicial?.status === "pago" && (
+        <>
+          {inicial.vencimento && <input type="hidden" name="vencimento" value={inicial.vencimento} />}
+          {inicial.pagoEm && <input type="hidden" name="pagoEm" value={inicial.pagoEm} />}
+        </>
+      )}
       {status === "a_pagar" && (
         <Campo rotulo="Vencimento" erro={erros.vencimento}>
           <input name="vencimento" type="date" defaultValue={v.vencimento ?? hoje} required />
@@ -206,7 +220,7 @@ function FormDespesa({ hoje, categorias, lancarDespesa, salvo }: Opcoes & { salv
         </p>
       )}
       <button className="botao largo" disabled={pendente}>
-        {pendente ? "Salvando…" : "Salvar despesa"}
+        {pendente ? "Salvando…" : rotulo}
       </button>
     </form>
   );

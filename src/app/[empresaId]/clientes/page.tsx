@@ -8,7 +8,9 @@ import { ROTULO_ORIGEM_VENDA } from "@/lib/rotulos";
 import { comprasDoCliente, listarClientes, obterCliente } from "@/lib/servidor/clientes";
 import { formatarTelefone } from "@/lib/validacao";
 import { exigirAcesso } from "@/servidor/acesso";
+import { JanelaCliente } from "@/componentes/editar";
 import { Icone } from "@/componentes/Icone";
+import { salvarCliente } from "../acoes";
 import { Topo, endereco } from "@/componentes/Topo";
 import { haQuanto, iniciais, reais, tomDe } from "@/componentes/formato";
 import { Entrada } from "@/componentes/vivos";
@@ -36,6 +38,7 @@ export default async function Clientes({ params, searchParams }: { params: Promi
   // No computador já abre a ficha do primeiro da lista.
   const escolhidoId = c && UUID.test(c) ? c : lista[0]?.id;
   const veCompras = pode(ctx.papel, "ver_todos_lancamentos");
+  const podeEditar = pode(ctx.papel, "lancar");
   const [cliente, compras, conversa] = escolhidoId
     ? await Promise.all([
         obterCliente(db, empresaId, escolhidoId),
@@ -57,7 +60,13 @@ export default async function Clientes({ params, searchParams }: { params: Promi
 
   return (
     <>
-      <Topo titulo="Clientes" sub={q ? `Busca por "${q}"` : "Quem já comprou ou falou com a empresa"} />
+      <Topo titulo="Clientes" sub={q ? `Busca por "${q}"` : "Quem já comprou ou falou com a empresa"}>
+        {podeEditar && (
+          <div className="topo-acoes">
+            <JanelaCliente acao={salvarCliente.bind(null, empresaId, null)} rotulo="+ Novo cliente" titulo="Novo cliente" lista={base} />
+          </div>
+        )}
+      </Topo>
       <Entrada className="kpis">
         <div className="kpi">
           <p className="kpi-rotulo">Clientes{q ? " encontrados" : ""}</p>
@@ -123,12 +132,25 @@ export default async function Clientes({ params, searchParams }: { params: Promi
                   {[formatarTelefone(cliente.telefone), cliente.email, `cliente desde ${formatarData(cliente.criadoEm.toISOString().slice(0, 10))}`].filter(Boolean).join(" · ")}
                 </p>
               </div>
-              {cliente.telefone && (
-                <a className="botao" href={`https://wa.me/${cliente.telefone}`} target="_blank" rel="noreferrer">
-                  <Icone nome="whatsapp" />
-                  WhatsApp
-                </a>
-              )}
+              <div className="topo-acoes">
+                {podeEditar && (
+                  <JanelaCliente
+                    key={cliente.id}
+                    acao={salvarCliente.bind(null, empresaId, cliente.id)}
+                    inicial={{ nome: cliente.nome, telefone: formatarTelefone(cliente.telefone), email: cliente.email ?? "", documento: cliente.documento ?? "", observacao: cliente.observacao }}
+                    rotulo="Editar"
+                    classe="botao-claro"
+                    titulo={`Editar ${cliente.nome}`}
+                    lista={endereco(base, { q })}
+                  />
+                )}
+                {cliente.telefone && (
+                  <a className="botao" href={`https://wa.me/${cliente.telefone}`} target="_blank" rel="noreferrer">
+                    <Icone nome="whatsapp" />
+                    WhatsApp
+                  </a>
+                )}
+              </div>
             </div>
 
             {veCompras && (

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { obterDb } from "@/db";
 import { formatarDataCurta, hoje, mesAtual, mesValido, nomeDoMes } from "@/lib/datas";
-import { pode } from "@/lib/permissoes";
+import { pode, podeAlterarLancamento } from "@/lib/permissoes";
 import { NOME_TIPO_DIVIDA } from "@/lib/textos-dividas";
 import { pagarParcela } from "@/lib/servidor/acoes-dividas";
 import { pagarFolha } from "@/lib/servidor/acoes-funcionarios";
@@ -14,6 +14,7 @@ import { folhaDoMes } from "@/lib/servidor/folha";
 import { listarDespesasDoMes } from "@/lib/servidor/lancamentos";
 import { exigirAcesso } from "@/servidor/acesso";
 import { BotaoLancar } from "@/componentes/BotaoLancar";
+import { AvisoLancamento, EditorLancamento } from "@/componentes/EditorLancamento";
 import { Icone } from "@/componentes/Icone";
 import { SeletorMes, Topo, endereco } from "@/componentes/Topo";
 import { porcento, reais, reaisCurto } from "@/componentes/formato";
@@ -35,7 +36,7 @@ const VER = [
 ] as const;
 const NOME_REGIME = { mei: "MEI", simples: "Simples Nacional", presumido: "Lucro Presumido", real: "Lucro Real" } as const;
 
-export default async function Financeiro({ params, searchParams }: { params: Promise<{ empresaId: string }>; searchParams: Promise<{ mes?: string; ver?: string }> }) {
+export default async function Financeiro({ params, searchParams }: { params: Promise<{ empresaId: string }>; searchParams: Promise<{ mes?: string; ver?: string; editar?: string; salvo?: string; excluida?: string }> }) {
   const { empresaId } = await params;
   const sp = await searchParams;
   const ctx = await exigirAcesso(empresaId, "ver_painel");
@@ -94,9 +95,22 @@ export default async function Financeiro({ params, searchParams }: { params: Pro
       <Topo titulo="Financeiro" sub={`Contas, despesas, impostos e dívidas · ${empresa.nome}`}>
         <div className="topo-acoes">
           <SeletorMes mes={mes} atual={atual} link={(m) => endereco(base, { ...filtros, mes: m === atual ? undefined : m })} />
+          <a className="botao-claro" href={`/${empresaId}/exportar?tipo=despesas&mes=${mes}`}>
+            Exportar CSV
+          </a>
           <BotaoLancar empresaId={empresaId} inicial="despesa" />
         </div>
       </Topo>
+
+      <EditorLancamento
+        empresaId={empresaId}
+        tipo="despesa"
+        id={sp.editar}
+        fechar={endereco(base, filtros)}
+        aposSalvar={endereco(base, { ...filtros, salvo: "1" })}
+        aposExcluir={endereco(base, { ...filtros, excluida: sp.editar })}
+      />
+      <AvisoLancamento empresaId={empresaId} tipo="despesa" salvo={sp.salvo} excluida={sp.excluida} limpar={endereco(base, filtros)} />
 
       {atrasadas.length > 0 && (
         <p className="faixa-alerta" role="status">
@@ -261,6 +275,53 @@ export default async function Financeiro({ params, searchParams }: { params: Pro
             </ul>
           ) : (
             <p className="vazio">Nenhuma dívida cadastrada.</p>
+          )}
+        </section>
+
+        <section className="cartao c12">
+          <header className="cartao-topo">
+            <h2>Despesas lançadas em {nomeDoMes(mes)}</h2>
+            <span className="nota">{despesas.length ? `${despesas.length} ${despesas.length === 1 ? "lançamento" : "lançamentos"}` : ""}</span>
+          </header>
+          {despesas.length ? (
+            <div className="tabela-rolar">
+              <table className="tabela">
+                <thead>
+                  <tr>
+                    <th>Dia</th>
+                    <th>Despesa</th>
+                    <th>Categoria</th>
+                    <th>Situação</th>
+                    <th className="num">Valor</th>
+                    <th aria-label="Ações" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...despesas]
+                    .sort((a, b) => b.data.localeCompare(a.data))
+                    .slice(0, 100)
+                    .map((d) => (
+                      <tr key={d.id}>
+                        <td>{formatarDataCurta(d.data)}</td>
+                        <td>{d.descricao || d.categoria}</td>
+                        <td>{d.categoria}</td>
+                        <td>{d.status === "pago" ? "Paga" : `A pagar até ${formatarDataCurta(d.vencimento)}`}</td>
+                        <td className="num">{reais(d.valor, true)}</td>
+                        <td className="num">
+                          {podeAlterarLancamento(papel, ctx.usuario.id, d.criadoPor) && (
+                            <Link className="link-editar" href={endereco(base, { ...filtros, editar: d.id })} scroll={false} aria-label={`Editar despesa de ${reais(d.valor, true)}`}>
+                              Editar
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              {despesas.length > 100 && <p className="nota">Mostrando as 100 mais recentes. O CSV leva todas.</p>}
+            </div>
+          ) : (
+            <p className="vazio">Nenhuma despesa lançada em {nomeDoMes(mes)}.</p>
           )}
         </section>
 

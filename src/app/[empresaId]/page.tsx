@@ -8,6 +8,7 @@ import { prepararEmpresa } from "@/lib/servidor/automaticos";
 import { listarParaConferir } from "@/lib/servidor/conferencia";
 import { carregarPainel } from "@/lib/servidor/painel";
 import { exigirAcesso } from "@/servidor/acesso";
+import { faturamentoDoMesAnteriorAteODia } from "@/servidor/comparativo";
 import { BotaoLancar } from "@/componentes/BotaoLancar";
 import { Icone } from "@/componentes/Icone";
 import { haQuanto, iniciais, porcento, reais, reaisCurto, tomDe } from "@/componentes/formato";
@@ -34,7 +35,31 @@ function Cartao({ classe, titulo, acao, children }: { classe: string; titulo?: s
   );
 }
 
-const LinkPara = ({ href, children }: { href: string; children: React.ReactNode }) => (
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+/** Variação em %, arredondada. Vazia quando não há base para comparar. */
+const variacaoPct = (atual: number, antes: number) => Math.round(((atual - antes) / antes) * 100);
+
+function Variacao({ v, contra }: { v: number; contra: string }) {
+  const classe = v > 0 ? "sobe" : v < 0 ? "desce" : "igual";
+  return (
+    <p className={`variacao ${classe}`}>
+      {v > 0 ? "▲" : v < 0 ? "▼" : "="} {Math.abs(v)}% <span className="oculto">em relação a</span>
+      <span aria-hidden> vs.</span> {contra}
+    </p>
+  );
+}
+
+function VariacaoValor({ diferenca, contra }: { diferenca: number; contra: string }) {
+  const classe = diferenca > 0 ? "sobe" : diferenca < 0 ? "desce" : "igual";
+  return (
+    <p className={`variacao ${classe}`}>
+      {diferenca > 0 ? `▲ ${reaisCurto(diferenca)} vs. ${contra}` : diferenca < 0 ? `▼ ${reaisCurto(-diferenca)} vs. ${contra}` : `= igual a ${contra}`}
+    </p>
+  );
+}
+
+const LinkPara =({ href, children }: { href: string; children: React.ReactNode }) => (
   <Link className="link" href={href}>
     {children} <Icone nome="seta" />
   </Link>
@@ -50,19 +75,36 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
   const db = obterDb();
   await prepararEmpresa(db, empresa, mes, atual);
   const temWhatsapp = modulos.has("whatsapp") && pode(papel, "lancar");
-  const [{ resumo: r, fontes, grafico, vencimentos, dividas, imposto }, aConferir, conversas] = await Promise.all([
-    carregarPainel(db, empresa, mes, hoje()),
+  const ehAtual = mes === atual;
+  const hojeData = hoje();
+  const [{ resumo: r, fontes, grafico, vencimentos, dividas, imposto }, aConferir, conversas, antesAteHoje] = await Promise.all([
+    carregarPainel(db, empresa, mes, hojeData),
     pode(papel, "conferir") ? listarParaConferir(db, empresaId) : [],
     temWhatsapp ? listarConversas(db, empresaId, "abertas") : [],
+    ehAtual ? faturamentoDoMesAnteriorAteODia(db, empresaId, mes, Number(hojeData.slice(8))) : null,
   ]);
 
+  const base = `/${empresaId}`;
   const anterior = grafico.at(-2);
-  const ehAtual = mes === atual;
   const pe = r.pontoEquilibrio;
   const fracaoPe = pe.tipo === "valor" && pe.valor > 0 ? r.faturamento / pe.valor : 0;
   const atrasadas = vencimentos.filter((v) => v.atrasado && v.tipo === "pagar");
+  const vencemHoje = vencimentos.filter((v) => v.data === hojeData && v.tipo === "pagar");
+  const chamaramEquipe = conversas.filter((c) => c.status === "humano").length;
+  const pendencias = [
+    atrasadas.length > 0 && { href: `${base}/financeiro`, urgente: true, texto: `${plural(atrasadas.length, "conta atrasada", "contas atrasadas")} · ${reaisCurto(atrasadas.reduce((t, v) => t + v.valor, 0))}` },
+    vencemHoje.length > 0 && { href: `${base}/financeiro`, urgente: false, texto: `${plural(vencemHoje.length, "conta vence", "contas vencem")} hoje · ${reaisCurto(vencemHoje.reduce((t, v) => t + v.valor, 0))}` },
+    aConferir.length > 0 && { href: `${base}/vendas?ver=conferir`, urgente: false, texto: `${plural(aConferir.length, "venda", "vendas")} para conferir` },
+    chamaramEquipe > 0 && { href: `${base}/whatsapp`, urgente: true, texto: `${plural(chamaramEquipe, "conversa chamou", "conversas chamaram")} a equipe` },
+  ].filter((p): p is { href: string; urgente: boolean; texto: string } => !!p);
+
+  // Mês corrente: contra o mesmo período do mês anterior. Mês fechado: contra o mês anterior inteiro.
+  const nomeAnterior = anterior ? nomeDoMes(anterior.mes).split(" ")[0] : "";
+  const baseFat = ehAtual ? antesAteHoje : (anterior?.faturamento ?? null);
+  // Sem nenhuma venda ainda no mês corrente, "-100%" só assusta: fica a nota de como o mês anterior fechou.
+  const deFaturamento = baseFat && (r.faturamento > 0 || !ehAtual) ? variacaoPct(r.faturamento, baseFat) : null;
+  const deLucro = !ehAtual && anterior ? r.lucro - anterior.lucro : null;
   const melhorMes = [...grafico].sort((a, b) => b.faturamento - a.faturamento)[0];
-  const base = `/${empresaId}`;
   const linkMes = (m: string) => (m === atual ? base : `${base}?mes=${m}`);
 
   return (
@@ -86,20 +128,31 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
         </div>
       </header>
 
-      {atrasadas.length > 0 && (
-        <p className="faixa-alerta" role="status">
-          <Icone nome="alerta" />
-          {atrasadas.length === 1 ? "1 conta atrasada" : `${atrasadas.length} contas atrasadas`} somando {reais(atrasadas.reduce((t, v) => t + v.valor, 0))}.
-        </p>
-      )}
+      <section className="precisa-hoje" aria-label="Precisa de você hoje">
+        <strong>Precisa de você hoje</strong>
+        {pendencias.length ? (
+          pendencias.map((p) => (
+            <Link key={p.texto} href={p.href} className={p.urgente ? "urgente" : ""}>
+              {p.urgente && <Icone nome="alerta" />}
+              {p.texto}
+            </Link>
+          ))
+        ) : (
+          <span className="em-dia">
+            <Icone nome="check" /> Tudo em dia: nada atrasado, nada para conferir.
+          </span>
+        )}
+      </section>
 
       <Entrada className="grade">
         <Cartao classe="c3" titulo="Faturamento">
           <Contador className="grande" valor={r.faturamento} />
-          <p className="nota">{anterior ? `${nomeDoMes(anterior.mes).split(" ")[0]} fechou em ${reaisCurto(anterior.faturamento)}.` : "Primeiro mês com lançamentos."}</p>
+          {deFaturamento != null && <Variacao v={deFaturamento} contra={ehAtual ? `o mesmo período de ${nomeAnterior}` : nomeAnterior} />}
+          <p className="nota">{anterior ? `${nomeAnterior} fechou em ${reaisCurto(anterior.faturamento)}.` : "Primeiro mês com lançamentos."}</p>
         </Cartao>
         <Cartao classe="c3" titulo="Lucro líquido">
           <Contador className={`grande ${r.lucro < 0 ? "ruim" : ""}`} valor={r.lucro} />
+          {deLucro != null && <VariacaoValor diferenca={deLucro} contra={nomeAnterior} />}
           <p className="nota">
             {r.margem == null ? "Sem faturamento no mês." : `Margem de ${porcento(r.margem, 1)}: de cada R$ 100 vendidos, sobraram ${reais(Math.round(r.margem / 10), true)}.`}
           </p>

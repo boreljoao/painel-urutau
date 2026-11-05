@@ -9,6 +9,7 @@ import { marcarVendaRecebida } from "@/lib/servidor/acoes-lancamentos";
 import { listarVendasDoMes } from "@/lib/servidor/lancamentos";
 import { exigirAcesso } from "@/servidor/acesso";
 import { BotaoLancar } from "@/componentes/BotaoLancar";
+import { AvisoLancamento, EditorLancamento } from "@/componentes/EditorLancamento";
 import { Icone } from "@/componentes/Icone";
 import { SeletorMes, Topo, endereco } from "@/componentes/Topo";
 import { porcento, reais, reaisCurto } from "@/componentes/formato";
@@ -30,7 +31,7 @@ export default async function Vendas({
   searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
-  searchParams: Promise<{ mes?: string; fonte?: string; ver?: string; q?: string; ate?: string }>;
+  searchParams: Promise<{ mes?: string; fonte?: string; ver?: string; q?: string; ate?: string; editar?: string; salvo?: string; excluida?: string }>;
 }) {
   const { empresaId } = await params;
   const sp = await searchParams;
@@ -78,9 +79,22 @@ export default async function Vendas({
       <Topo titulo="Vendas" sub={`${nomeDoMes(mes)}${mes === atual ? ", até hoje" : ""}${veTudo ? "" : " · só as que você lançou"}`}>
         <div className="topo-acoes">
           <SeletorMes mes={mes} atual={atual} link={(m) => link({ mes: m === atual ? undefined : m })} />
+          <a className="botao-claro" href={`/${empresaId}/exportar?tipo=vendas&mes=${mes}`}>
+            Exportar CSV
+          </a>
           <BotaoLancar empresaId={empresaId} />
         </div>
       </Topo>
+
+      <EditorLancamento
+        empresaId={empresaId}
+        tipo="venda"
+        id={sp.editar}
+        fechar={link({})}
+        aposSalvar={link({ salvo: "1" })}
+        aposExcluir={link({ excluida: sp.editar })}
+      />
+      <AvisoLancamento empresaId={empresaId} tipo="venda" salvo={sp.salvo} excluida={sp.excluida} limpar={link({})} />
 
       <Entrada className="grade">
         <section className="cartao c3">
@@ -188,11 +202,18 @@ export default async function Vendas({
                         <td>{veTudo ? (v.autor?.split(" ")[0] ?? "Automático") : v.status === "recebido" ? "Recebida" : "A receber"}</td>
                         <td className="num">{reais(v.valor, true)}</td>
                         <td className="num">
-                          {pendente ? (
-                            <BotaoConferir acao={conferir.bind(null, empresaId, v.id)} />
-                          ) : v.status === "a_receber" && podeAlterarLancamento(ctx.papel, ctx.usuario.id, v.criadoPor) ? (
-                            <BotaoAcao acao={marcarVendaRecebida.bind(null, empresaId, v.id)} rotulo="Recebi" sumir={false} />
-                          ) : null}
+                          <span className="acoes-linha">
+                            {pendente ? (
+                              <BotaoConferir acao={conferir.bind(null, empresaId, v.id)} />
+                            ) : v.status === "a_receber" && podeAlterarLancamento(ctx.papel, ctx.usuario.id, v.criadoPor) ? (
+                              <BotaoAcao acao={marcarVendaRecebida.bind(null, empresaId, v.id)} rotulo="Recebi" sumir={false} />
+                            ) : null}
+                            {podeAlterarLancamento(ctx.papel, ctx.usuario.id, v.criadoPor) && (
+                              <Link className="link-editar" href={link({ editar: v.id })} scroll={false} aria-label={`Editar venda de ${reais(v.valor, true)}`}>
+                                Editar
+                              </Link>
+                            )}
+                          </span>
                         </td>
                       </tr>
                     );
