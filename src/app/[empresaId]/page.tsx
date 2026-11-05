@@ -9,7 +9,9 @@ import { listarParaConferir } from "@/lib/servidor/conferencia";
 import { carregarPainel } from "@/lib/servidor/painel";
 import { exigirAcesso } from "@/servidor/acesso";
 import { faturamentoDoMesAnteriorAteODia } from "@/servidor/comparativo";
-import { pacoteDe } from "@/pacotes/catalogo";
+import { agendaDoPacote, pacoteDe } from "@/pacotes/catalogo";
+import { NOME_STATUS, agoraEmMinutos, minutos } from "@/pacotes/agenda";
+import { resumoDaAgenda } from "@/servidor/agenda";
 import { BotaoLancar } from "@/componentes/BotaoLancar";
 import { Icone } from "@/componentes/Icone";
 import { haQuanto, iniciais, porcento, reais, reaisCurto, tomDe } from "@/componentes/formato";
@@ -78,11 +80,13 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
   const temWhatsapp = modulos.has("whatsapp") && pode(papel, "lancar");
   const ehAtual = mes === atual;
   const hojeData = hoje();
-  const [{ resumo: r, fontes, grafico, vencimentos, dividas, imposto }, aConferir, conversas, antesAteHoje] = await Promise.all([
+  const daAgenda = agendaDoPacote(empresa.perfil);
+  const [{ resumo: r, fontes, grafico, vencimentos, dividas, imposto }, aConferir, conversas, antesAteHoje, agenda] = await Promise.all([
     carregarPainel(db, empresa, mes, hojeData),
     pode(papel, "conferir") ? listarParaConferir(db, empresaId) : [],
     temWhatsapp ? listarConversas(db, empresaId, "abertas") : [],
     ehAtual ? faturamentoDoMesAnteriorAteODia(db, empresaId, mes, Number(hojeData.slice(8))) : null,
+    daAgenda ? resumoDaAgenda(empresaId) : null,
   ]);
 
   const base = `/${empresaId}`;
@@ -93,10 +97,13 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
   const atrasadas = vencimentos.filter((v) => v.atrasado && v.tipo === "pagar");
   const vencemHoje = vencimentos.filter((v) => v.data === hojeData && v.tipo === "pagar");
   const chamaramEquipe = conversas.filter((c) => c.status === "humano").length;
+  const agora = agoraEmMinutos();
+  const semConfirmarHoje = agenda ? agenda.hoje.filter((a) => a.status === "marcado" && minutos(a.hora) > agora).length : 0;
   const pendencias = [
     atrasadas.length > 0 && { href: `${base}/financeiro`, urgente: true, texto: `${plural(atrasadas.length, "conta atrasada", "contas atrasadas")} · ${reaisCurto(atrasadas.reduce((t, v) => t + v.valor, 0))}` },
     vencemHoje.length > 0 && { href: `${base}/financeiro`, urgente: false, texto: `${plural(vencemHoje.length, "conta vence", "contas vencem")} hoje · ${reaisCurto(vencemHoje.reduce((t, v) => t + v.valor, 0))}` },
     aConferir.length > 0 && { href: `${base}/vendas?ver=conferir`, urgente: false, texto: `${plural(aConferir.length, "venda", "vendas")} para conferir` },
+    semConfirmarHoje > 0 && { href: `${base}/agenda?ver=dia`, urgente: false, texto: `${plural(semConfirmarHoje, "horário de hoje", "horários de hoje")} sem confirmar` },
     chamaramEquipe > 0 && { href: `${base}/whatsapp`, urgente: true, texto: `${plural(chamaramEquipe, "conversa chamou", "conversas chamaram")} a equipe` },
   ].filter((p): p is { href: string; urgente: boolean; texto: string } => !!p);
 
@@ -147,6 +154,27 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
       </section>
 
       <Entrada className="grade">
+        {daAgenda && agenda && (
+          <Cartao classe="c12 hoje-agenda" titulo={`Hoje · ${daAgenda.aba.titulo}`} acao={<LinkPara href={`${base}/agenda?ver=dia`}>Abrir agenda</LinkPara>}>
+            {agenda.hoje.length ? (
+              <ol className="hoje-agenda-lista">
+                {agenda.hoje.map((a) => (
+                  <li key={a.id} className={`situacao-${a.status} ${minutos(a.hora) + a.duracaoMin <= agora ? "passou" : ""}`}>
+                    <Link href={`${base}/agenda?editar=${a.id}`}>
+                      <strong>{a.hora}</strong>
+                      <span>{a.nome}</span>
+                      <span className="nota">{a.servico}</span>
+                      <span className={`pilula situacao-${a.status}`}>{NOME_STATUS[a.status]}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="vazio">Nada marcado para hoje.</p>
+            )}
+            {agenda.faltasNoMes > 0 && <p className="nota">{plural(agenda.faltasNoMes, "falta", "faltas")} neste mês.</p>}
+          </Cartao>
+        )}
         <Cartao classe="c3" titulo="Faturamento">
           <Contador className="grande" valor={r.faturamento} />
           {deFaturamento != null && <Variacao v={deFaturamento} contra={ehAtual ? `o mesmo período de ${nomeAnterior}` : nomeAnterior} />}
@@ -319,6 +347,18 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
                   </Link>
                 </li>
               ))}
+              {daAgenda && (
+                // No celular a agenda ocupa o lugar do financeiro na barra de baixo; ele continua aqui.
+                <li className="so-celular">
+                  <Link href={`${base}/financeiro`}>
+                    <Icone nome="financeiro" />
+                    <span>
+                      <strong>Financeiro</strong>
+                      <span className="nota">Despesas, contas e caixa</span>
+                    </span>
+                  </Link>
+                </li>
+              )}
             </ul>
           </Cartao>
         )}

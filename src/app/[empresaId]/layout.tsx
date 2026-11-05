@@ -23,14 +23,16 @@ export default async function LayoutEmpresa({ children, params }: { children: Re
   const esperando = atendimento ? atendimento.aprovar + atendimento.comEquipe + atendimento.naoLidas : 0;
   const base = `/${empresaId}`;
   const pacote = pacoteDe(empresa.perfil);
+  const temAgenda = pacote.abas.some((a) => a.rota === "agenda") && pode(papel, "ver_clientes");
   const itens: ItemMenu[] = [
     pode(papel, "ver_painel") && { href: base, nome: "Visão geral", icone: "inicio" as const },
     pode(papel, "ver_lancamentos") && { href: `${base}/vendas`, nome: pacote.vocab.vendas, icone: "vendas" as const },
     pode(papel, "ver_clientes") && { href: `${base}/clientes`, nome: pacote.vocab.clientes, icone: "clientes" as const },
     temWhatsapp && pode(papel, "ver_clientes") && { href: `${base}/whatsapp`, nome: "WhatsApp", icone: "whatsapp" as const },
-    pode(papel, "ver_painel") && { href: `${base}/financeiro`, nome: "Financeiro", icone: "financeiro" as const },
+    // Quem trabalha com horário marcado usa a agenda todo dia: no celular ela toma o lugar do financeiro na barra.
+    pode(papel, "ver_painel") && { href: `${base}/financeiro`, nome: "Financeiro", icone: "financeiro" as const, foraDaBarra: temAgenda },
     // As abas do ramo: o que faz este painel ser de uma confeitaria, de uma revenda, de um consultório…
-    ...pacote.abas.map((a) => ({ href: a.rota ? `${base}/${a.rota}` : `${base}/n/${a.id}`, nome: a.titulo, icone: a.icone, doNegocio: true, emBreve: !a.rota })),
+    ...pacote.abas.map((a) => ({ href: a.rota ? `${base}/${a.rota}` : `${base}/n/${a.id}`, nome: a.titulo, icone: a.icone, doNegocio: true, emBreve: !a.rota, naBarra: a.rota === "agenda" })),
     pode(papel, "gerenciar") && { href: `${base}/pacote`, nome: "Seu pacote", icone: "ajustes" as const, doNegocio: true },
   ].filter(Boolean) as ItemMenu[];
   const marca = corDoPerfil(empresa.perfil);

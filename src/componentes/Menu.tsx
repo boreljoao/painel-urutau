@@ -11,6 +11,9 @@ export interface ItemMenu {
   /** Aba do pacote do negócio: no celular fica fora da barra de baixo (aparece na Visão geral). */
   doNegocio?: boolean;
   emBreve?: boolean;
+  /** No celular: aba do negócio que fica na barra de baixo (a agenda) ou tela que sai dela. */
+  naBarra?: boolean;
+  foraDaBarra?: boolean;
 }
 
 /** O menu da barra lateral; no celular vira a barra de baixo. */
@@ -21,7 +24,7 @@ export function Menu({ itens, selos }: { itens: ItemMenu[]; selos: Record<string
   return (
     <nav className="menu" aria-label="Telas">
       {itens.map((i) => (
-        <Link key={i.href} href={i.href} aria-current={i === ativo ? "page" : undefined} className={i.doNegocio ? "do-negocio" : undefined}>
+        <Link key={i.href} href={i.href} aria-current={i === ativo ? "page" : undefined} className={[i.doNegocio && "do-negocio", i.naBarra && "na-barra", i.foraDaBarra && "fora-da-barra"].filter(Boolean).join(" ") || undefined}>
           <Icone nome={i.icone} />
           <span>{i.nome}</span>
           {i.emBreve && <small className="em-breve">em breve</small>}

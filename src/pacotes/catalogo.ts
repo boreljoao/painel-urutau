@@ -1,5 +1,6 @@
 import type { Atividade, Perfil } from "@/db/schema";
 import type { NomeIcone } from "@/componentes/Icone";
+import { AGENDA_PADRAO, type ConfigAgenda } from "./agenda";
 
 /**
  * Pacotes: o painel se molda ao tipo de negócio. O núcleo (vendas, despesas, caixa, impostos,
@@ -37,6 +38,8 @@ export interface Pacote {
   fiscal: { atividade: Atividade; anexoComercio?: "I" | "II"; anexoServicos?: "III" | "IV" | "V"; fatorR?: boolean };
   /** O que a Visão geral vai destacar para este ramo. */
   destaques: string[];
+  /** Expediente e palavras da agenda, nos ramos que trabalham com horário marcado. */
+  agenda?: ConfigAgenda;
 }
 
 export const PACOTES: Record<Perfil, Pacote> = {
@@ -59,6 +62,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
         titulo: "Visitas e test drive",
         desc: "Quem vem ver qual carro e quando",
         icone: "agenda",
+        rota: "agenda",
         vaiTer: ["Horários marcados pela equipe e pelo atendente do WhatsApp", "Qual carro cada visita quer ver", "Lembrete automático para o cliente"],
       },
     ],
@@ -68,6 +72,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
     ],
     fiscal: { atividade: "ambos", anexoComercio: "I", anexoServicos: "III" },
     destaques: ["Carros no pátio", "Margem por carro", "Dias parados"],
+    agenda: { inicio: 9, fim: 18, duracao: 60, pessoa: "Cliente", atendimento: "Visita", servicos: ["Visita", "Test drive", "Avaliação do carro na troca", "Entrega do carro"] },
   },
   consultorio: {
     perfil: "consultorio",
@@ -81,6 +86,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
         titulo: "Agenda",
         desc: "Atendimentos do dia e da semana",
         icone: "agenda",
+        rota: "agenda",
         vaiTer: ["Agenda grande do dia e da semana", "Quem atende, paciente, horário e sala", "Confirmação e lembrete automáticos pelo WhatsApp", "Faltas e horários livres"],
       },
       {
@@ -97,6 +103,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
     ],
     fiscal: { atividade: "servicos", anexoServicos: "V", fatorR: true },
     destaques: ["Atendimentos de hoje", "Horários livres", "Faltas do mês"],
+    agenda: { inicio: 8, fim: 20, duracao: 50, pessoa: "Paciente", atendimento: "Sessão", servicos: ["Sessão", "Primeira consulta", "Avaliação", "Retorno", "Sessão on-line"] },
   },
   varejo: {
     perfil: "varejo",
@@ -136,6 +143,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
         titulo: "Visitas",
         desc: "Onde e quando cada serviço acontece",
         icone: "agenda",
+        rota: "agenda",
         vaiTer: ["Visitas do dia com endereço", "Quem da equipe vai", "Lembrete para o cliente"],
       },
       {
@@ -152,6 +160,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
     ],
     fiscal: { atividade: "servicos", anexoServicos: "III" },
     destaques: ["Visitas de hoje", "Orçamentos abertos", "Serviços a receber"],
+    agenda: { inicio: 8, fim: 18, duracao: 60, pessoa: "Cliente", atendimento: "Visita", servicos: ["Visita técnica", "Orçamento", "Instalação", "Manutenção", "Retorno"] },
   },
   alimentacao: {
     perfil: "alimentacao",
@@ -242,6 +251,13 @@ export const PACOTES: Record<Perfil, Pacote> = {
 export const ORDEM_PACOTES: Perfil[] = ["alimentacao", "consultorio", "revenda_veiculos", "varejo", "servicos", "contabilidade", "financas"];
 
 export const pacoteDe = (perfil: Perfil) => PACOTES[perfil] ?? PACOTES.financas;
+
+/** A aba de agenda do pacote (o título muda: Agenda, Visitas, Visitas e test drive) e o expediente. */
+export function agendaDoPacote(perfil: Perfil) {
+  const p = pacoteDe(perfil);
+  const aba = p.abas.find((a) => a.rota === "agenda");
+  return aba ? { aba, cfg: p.agenda ?? AGENDA_PADRAO } : null;
+}
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 

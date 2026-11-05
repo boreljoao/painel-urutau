@@ -1241,67 +1241,6 @@ select {
   font-weight: 600;
 }
 
-/* ── Agenda ──────────────────────────────────────────────────────────── */
-.semana {
-  display: grid;
-  grid-template-columns: 56px repeat(var(--dias), minmax(110px, 1fr));
-  gap: 6px;
-  min-width: 640px;
-}
-.semana-dia {
-  padding: 4px 8px 8px;
-  font-weight: 700;
-}
-.semana-dia small {
-  display: block;
-  color: var(--suave);
-  font-weight: 500;
-}
-.semana-dia.hoje {
-  color: color-mix(in srgb, var(--cor) 85%, black);
-}
-.semana-hora {
-  align-self: center;
-  color: var(--suave);
-  font-size: 13px;
-  font-weight: 600;
-}
-.slot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--tom);
-  font-size: 13px;
-}
-.slot.sessao {
-  background: var(--tom);
-  box-shadow: inset 3px 0 0 var(--cor);
-}
-.slot.sessao small {
-  color: var(--suave);
-}
-.slot.livre {
-  justify-content: center;
-  background: var(--cor-clara);
-  color: color-mix(in srgb, var(--cor) 85%, black);
-  font-weight: 700;
-  cursor: pointer;
-  outline: 1.5px dashed var(--cor);
-  outline-offset: -3px;
-  transition: transform 160ms var(--ease);
-}
-.slot.livre:active {
-  transform: scale(0.96);
-}
-.slot.fechado {
-  background: repeating-linear-gradient(135deg, var(--tom) 0 6px, var(--superficie) 6px 12px);
-}
-
 /* ── Financeiro ──────────────────────────────────────────────────────── */
 .contas li strong {
   min-width: 110px;
@@ -2700,5 +2639,550 @@ ul.lista-escolha,
 @media (min-width: 901px) {
   .lado {
     z-index: 40;
+  }
+}
+
+/* ─── Agenda ─────────────────────────────────────────────────────────────────
+ * Semana: grade grande, cada horário com altura proporcional à duração (64px por hora).
+ * Dia: lista com os horários livres entre os marcados; no celular é a tela principal.
+ * A situação tem uma cor só: marcado (cor da marca, claro), confirmado (cor da marca),
+ * atendido (verde), faltou (vermelho), cancelado (riscado).
+ */
+.so-celular {
+  display: none;
+}
+.agenda-hoje {
+  width: auto !important;
+  padding: 0 12px;
+  border-radius: 999px !important;
+  font-size: 14px !important;
+}
+.agenda-hoje[aria-current] {
+  background: var(--tom);
+}
+.agenda-resumo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.agenda-resumo p {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--superficie);
+  font-size: 14px;
+}
+.agenda-resumo-alerta strong {
+  color: var(--alerta);
+}
+.agenda.ver-dia .agenda-semana,
+.agenda.ver-semana .agenda-dia {
+  display: none;
+}
+.agenda-semana {
+  padding: 14px 14px 18px;
+}
+.semana {
+  --px-hora: 64px;
+  display: grid;
+  min-width: 0;
+}
+.semana-cab,
+.semana-corpo {
+  display: grid;
+  grid-template-columns: 44px repeat(var(--dias), minmax(0, 1fr));
+}
+.semana-cab {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding-bottom: 8px;
+  background: var(--superficie);
+}
+.semana-dia {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  color: var(--suave);
+  font-size: 13px;
+  text-transform: capitalize;
+}
+.semana-dia strong {
+  color: var(--tinta);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.semana-dia em {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--tom-2);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+}
+.semana-dia.hoje {
+  background: var(--cor);
+  color: rgb(255 255 255 / 0.85);
+}
+.semana-dia.hoje strong {
+  color: #fff;
+}
+.semana-dia.hoje em {
+  background: rgb(255 255 255 / 0.22);
+  color: #fff;
+}
+.semana-corpo {
+  position: relative;
+  height: var(--altura);
+  margin-top: 8px;
+}
+.semana-horas {
+  position: relative;
+}
+.semana-horas span {
+  position: absolute;
+  right: 8px;
+  color: var(--apagado);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-50%);
+}
+.semana-coluna {
+  position: relative;
+  border-left: 1px solid var(--linha);
+  background-image: repeating-linear-gradient(to bottom, var(--linha) 0 1px, transparent 1px var(--px-hora));
+}
+.semana-coluna.hoje {
+  background-color: color-mix(in srgb, var(--cor-clara) 45%, transparent);
+}
+.semana-coluna.passado {
+  background-color: var(--tom);
+}
+.semana-vaga {
+  position: absolute;
+  inset-inline: 0;
+  height: var(--px-hora);
+  border-radius: 8px;
+}
+.semana-vaga::after {
+  content: "+";
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--cor);
+  font-size: 20px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .semana-vaga:hover {
+    background: color-mix(in srgb, var(--cor-clara) 70%, transparent);
+  }
+  .semana-vaga:hover::after {
+    opacity: 1;
+  }
+  .marcacao:hover {
+    z-index: 2;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.12);
+  }
+  .livres-horas a:hover {
+    background: var(--cor);
+    color: #fff;
+  }
+}
+.marcacao {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 7px;
+  overflow: hidden;
+  border-left: 3px solid var(--cor);
+  border-radius: 8px;
+  background: var(--cor-clara);
+  color: var(--tinta);
+  font-size: 12px;
+  line-height: 1.25;
+  transition: box-shadow 150ms ease;
+}
+.marcacao strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.marcacao-hora {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+.marcacao-det {
+  overflow: hidden;
+  color: var(--suave);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.marcacao.curta {
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  padding-block: 2px;
+}
+.marcacao.curta .marcacao-det {
+  display: none;
+}
+.marcacao.situacao-confirmado {
+  border-left-color: rgb(0 0 0 / 0.25);
+  background: var(--cor);
+  color: #fff;
+}
+.marcacao.situacao-confirmado .marcacao-det {
+  color: rgb(255 255 255 / 0.8);
+}
+.marcacao.situacao-atendido {
+  border-left-color: var(--bom);
+  background: #e2f2e8;
+}
+.marcacao.situacao-faltou {
+  border-left-color: var(--ruim);
+  background: #fbe6e3;
+}
+.marcacao.situacao-cancelado {
+  border: 1px dashed var(--linha);
+  background: var(--superficie);
+  color: var(--apagado);
+  text-decoration: line-through;
+}
+.semana-agora {
+  position: absolute;
+  inset-inline: -1px 0;
+  z-index: 2;
+  height: 2px;
+  background: var(--ruim);
+  pointer-events: none;
+}
+.semana-agora::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ruim);
+}
+
+.pilula.situacao-marcado {
+  background: var(--cor-clara);
+  color: var(--cor);
+}
+.pilula.situacao-confirmado {
+  background: var(--cor);
+  color: #fff;
+}
+.pilula.situacao-atendido {
+  background: #dcf1e4;
+  color: var(--bom);
+}
+.pilula.situacao-faltou {
+  background: #fbe3df;
+  color: var(--ruim);
+}
+.pilula.situacao-cancelado {
+  background: var(--tom-2);
+  color: var(--apagado);
+}
+
+.agenda-dia {
+  display: grid;
+  gap: 14px;
+}
+.dias-chips {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.dias-chips a {
+  display: grid;
+  justify-items: center;
+  padding: 8px 2px 4px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: var(--superficie);
+  color: var(--suave);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.dias-chips strong {
+  color: var(--tinta);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.dias-chips em {
+  min-height: 14px;
+  color: var(--cor);
+  font-size: 12px;
+  font-style: normal;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.dias-chips a.hoje {
+  border-color: var(--cor);
+}
+.dias-chips a[aria-current] {
+  background: var(--cor);
+  color: rgb(255 255 255 / 0.85);
+}
+.dias-chips a[aria-current] strong,
+.dias-chips a[aria-current] em {
+  color: #fff;
+}
+.agenda-dia-titulo {
+  font-size: 20px;
+}
+.agenda-dia-titulo::first-letter {
+  text-transform: uppercase;
+}
+.linha-do-dia {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.atendimento {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px 18px;
+  border-left: 5px solid var(--cor);
+  border-radius: 16px;
+  background: var(--superficie);
+}
+.atendimento.situacao-marcado {
+  border-left-color: var(--cor-clara);
+}
+.atendimento.situacao-atendido {
+  border-left-color: var(--bom);
+}
+.atendimento.situacao-faltou {
+  border-left-color: var(--ruim);
+}
+.atendimento.situacao-cancelado {
+  border-left-color: var(--linha);
+  opacity: 0.6;
+}
+.atendimento.situacao-cancelado .atendimento-nome {
+  text-decoration: line-through;
+}
+.atendimento-hora {
+  display: grid;
+  align-content: start;
+  font-variant-numeric: tabular-nums;
+}
+.atendimento-hora strong {
+  font-size: 24px;
+  line-height: 1.1;
+}
+.atendimento-hora span {
+  color: var(--apagado);
+  font-size: 13px;
+}
+.atendimento-corpo {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.atendimento-nome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.atendimento-det {
+  color: var(--suave);
+}
+.atendimento-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.botao-pequeno-apagado {
+  background: var(--tom) !important;
+  color: var(--suave) !important;
+}
+.livres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 18px;
+  border: 1.5px dashed var(--linha);
+  border-radius: 16px;
+}
+.livres-rotulo {
+  min-width: 72px;
+  color: var(--apagado);
+  font-size: 13px;
+  font-weight: 600;
+}
+.livres-horas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.livres-horas a,
+.livres-horas span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--superficie);
+  color: var(--suave);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.livres-horas a:active {
+  transform: scale(0.97);
+}
+
+.janela-agenda .agenda-situacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px 0;
+}
+.aviso-choque {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fdf3e1;
+  color: #8a5a10;
+  font-size: 14px;
+}
+.agenda-receber {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 18px;
+}
+.agenda-receber-form {
+  margin: 0 20px 18px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--tom);
+}
+.agenda-receber-form h3 {
+  font-size: 15px;
+}
+
+.hoje-agenda-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hoje-agenda-lista a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "hora nome situacao" "hora servico situacao";
+  align-items: center;
+  column-gap: 12px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--cor);
+  border-radius: 12px;
+  background: var(--tom);
+}
+.hoje-agenda-lista strong {
+  grid-area: hora;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.hoje-agenda-lista a > span:nth-of-type(1) {
+  grid-area: nome;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hoje-agenda-lista .nota {
+  grid-area: servico;
+}
+.hoje-agenda-lista .pilula {
+  grid-area: situacao;
+}
+.hoje-agenda-lista .situacao-atendido a {
+  border-left-color: var(--bom);
+}
+.hoje-agenda-lista .situacao-faltou a {
+  border-left-color: var(--ruim);
+}
+.hoje-agenda-lista .passou {
+  opacity: 0.6;
+}
+
+@media (max-width: 900px) {
+  .so-celular {
+    display: list-item;
+  }
+  .menu a.do-negocio.na-barra {
+    display: flex;
+  }
+  .menu a.fora-da-barra {
+    display: none;
+  }
+  .agenda-ver {
+    display: none;
+  }
+  /* No celular a semana não cabe: a lista do dia é a agenda. */
+  .agenda.ver-semana .agenda-semana {
+    display: none;
+  }
+  .agenda.ver-semana .agenda-dia {
+    display: grid;
+  }
+  .agenda-resumo p {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}
+@media (max-width: 600px) {
+  .atendimento {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+  .atendimento-hora strong {
+    font-size: 20px;
+  }
+  .atendimento-nome {
+    font-size: 17px;
+  }
+  .livres {
+    padding: 10px 14px;
+  }
+  .livres-rotulo {
+    min-width: 0;
+    width: 100%;
+  }
+  .dias-chips {
+    gap: 4px;
   }
 }
