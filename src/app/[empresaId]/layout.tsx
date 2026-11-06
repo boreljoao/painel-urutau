@@ -8,8 +8,11 @@ import { corDoPerfil } from "@/servidor/marca";
 import { pacoteDe } from "@/pacotes/catalogo";
 import { Mascote } from "@/componentes/Mascote";
 import { Menu, type ItemMenu } from "@/componentes/Menu";
+import { Opiniao } from "@/componentes/Opiniao";
+import { ehDemo } from "@/lib/demo";
 import { iniciais, tomDe } from "@/componentes/formato";
 import { sair } from "../acoes";
+import { enviarOpiniao } from "./opiniao-acoes";
 
 export default async function LayoutEmpresa({ children, params }: { children: React.ReactNode; params: Promise<{ empresaId: string }> }) {
   const { empresaId } = await params;
@@ -36,6 +39,7 @@ export default async function LayoutEmpresa({ children, params }: { children: Re
     pode(papel, "gerenciar") && { href: `${base}/pacote`, nome: "Seu pacote", icone: "ajustes" as const, doNegocio: true },
   ].filter(Boolean) as ItemMenu[];
   const marca = corDoPerfil(empresa.perfil);
+  const visitante = ehDemo(usuario.email);
 
   return (
     <div className="app" style={{ "--cor": marca.cor, "--cor-clara": marca.clara } as React.CSSProperties}>
@@ -66,7 +70,30 @@ export default async function LayoutEmpresa({ children, params }: { children: Re
           <Mascote empresa={empresa.nome} />
         </div>
       </aside>
-      <main className="tela">{children}</main>
+      <main className="tela">
+        {visitante && (
+          <p className="faixa-demo">
+            <span>
+              <strong>Painel de exemplo.</strong> Os números são inventados e tudo some em um dia.
+            </span>
+            <Link className="botao-pequeno" href="/cadastrar">
+              Criar a minha conta
+            </Link>
+          </p>
+        )}
+        {children}
+        <footer className="tela-pe">
+          <Opiniao enviar={enviarOpiniao.bind(null, empresaId)} visitante={visitante} />
+          <nav className="tela-pe-links" aria-label="Documentos">
+            <Link className="link" href="/termos">
+              Termos de uso
+            </Link>
+            <Link className="link" href="/privacidade">
+              Privacidade
+            </Link>
+          </nav>
+        </footer>
+      </main>
     </div>
   );
 }

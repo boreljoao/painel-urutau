@@ -12,6 +12,7 @@ import { faturamentoDoMesAnteriorAteODia } from "@/servidor/comparativo";
 import { agendaDoPacote, pacoteDe } from "@/pacotes/catalogo";
 import { NOME_STATUS, agoraEmMinutos, minutos } from "@/pacotes/agenda";
 import { resumoDaAgenda } from "@/servidor/agenda";
+import { primeirosPassos } from "@/servidor/primeiros-passos";
 import { BotaoLancar } from "@/componentes/BotaoLancar";
 import { Icone } from "@/componentes/Icone";
 import { haQuanto, iniciais, porcento, reais, reaisCurto, tomDe } from "@/componentes/formato";
@@ -81,12 +82,13 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
   const ehAtual = mes === atual;
   const hojeData = hoje();
   const daAgenda = agendaDoPacote(empresa.perfil);
-  const [{ resumo: r, fontes, grafico, vencimentos, dividas, imposto }, aConferir, conversas, antesAteHoje, agenda] = await Promise.all([
+  const [{ resumo: r, fontes, grafico, vencimentos, dividas, imposto }, aConferir, conversas, antesAteHoje, agenda, inicio] = await Promise.all([
     carregarPainel(db, empresa, mes, hojeData),
     pode(papel, "conferir") ? listarParaConferir(db, empresaId) : [],
     temWhatsapp ? listarConversas(db, empresaId, "abertas") : [],
     ehAtual ? faturamentoDoMesAnteriorAteODia(db, empresaId, mes, Number(hojeData.slice(8))) : null,
     daAgenda ? resumoDaAgenda(empresaId) : null,
+    primeirosPassos(empresaId, empresa.perfil),
   ]);
 
   const base = `/${empresaId}`;
@@ -113,8 +115,23 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
   // Sem nenhuma venda ainda no mês corrente, "-100%" só assusta: fica a nota de como o mês anterior fechou.
   const deFaturamento = baseFat && (r.faturamento > 0 || !ehAtual) ? variacaoPct(r.faturamento, baseFat) : null;
   const deLucro = !ehAtual && anterior ? r.lucro - anterior.lucro : null;
-  const melhorMes = [...grafico].sort((a, b) => b.faturamento - a.faturamento)[0];
+  // O gráfico começa no primeiro mês com lançamento: antes disso a empresa não existia no painel
+  // (e o imposto fixo do MEI, estimado nesses meses, virava um prejuízo que nunca aconteceu).
+  // Mês sem nenhum lançamento conta como zero. A linha precisa de dois pontos, então com um mês só
+  // o anterior entra no desenho, zerado, mas fica fora das somas.
+  const primeiro = Math.max(0, grafico.findIndex((g) => !g.semLancamentos));
+  const periodo = grafico.slice(primeiro);
+  const desenho = grafico.slice(Math.min(primeiro, grafico.length - 2)).map((g) => (g.semLancamentos ? { ...g, despesas: 0, lucro: 0 } : g));
+  const anoCheio = periodo.length === grafico.length;
+  const desde = `desde ${nomeDoMes(periodo[0].mes).split(" ")[0]}`;
+  const melhorMes = [...periodo].sort((a, b) => b.faturamento - a.faturamento)[0];
   const linkMes = (m: string) => (m === atual ? base : `${base}?mes=${m}`);
+  // Empresa sem nenhum lançamento: no lugar dos zeros, o que fazer primeiro.
+  const vazia = inicio.vazia;
+  const faltam = inicio.passos.filter((p) => !p.feito).length;
+  const recente = Date.now() - new Date(empresa.criadoEm).getTime() < 45 * 24 * 60 * 60 * 1000;
+  const mostrarPassos = faltam > 0 && (vazia || recente);
+  const temHistorico = grafico.some((g) => !g.semLancamentos);
 
   return (
     <>
@@ -137,6 +154,7 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
         </div>
       </header>
 
+      {!vazia && (
       <section className="precisa-hoje" aria-label="Precisa de você hoje">
         <strong>Precisa de você hoje</strong>
         {pendencias.length ? (
@@ -152,8 +170,30 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
           </span>
         )}
       </section>
+      )}
 
       <Entrada className="grade">
+        {mostrarPassos && (
+          <Cartao classe="c12 primeiros-passos" titulo={vazia ? "Primeiros passos" : `Faltam ${plural(faltam, "passo", "passos")} para o painel ficar completo`}>
+            {vazia && <p className="nota">O painel se monta com o que você lança. Comece por aqui: em poucos minutos aparecem o faturamento, o lucro e o caixa do mês.</p>}
+            <ol className="passos">
+              {inicio.passos.map((p, i) => (
+                <li key={p.id} className={p.feito ? "feito" : ""}>
+                  <Link href={p.href}>
+                    <span className="passo-num" aria-hidden>
+                      {p.feito ? <Icone nome="check" /> : i + 1}
+                    </span>
+                    <span>
+                      <strong>{p.titulo}</strong>
+                      <span className="nota">{p.feito ? "Feito." : p.desc}</span>
+                    </span>
+                    {!p.feito && <Icone nome="seta" />}
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </Cartao>
+        )}
         {daAgenda && agenda && (
           <Cartao classe="c12 hoje-agenda" titulo={`Hoje · ${daAgenda.aba.titulo}`} acao={<LinkPara href={`${base}/agenda?ver=dia`}>Abrir agenda</LinkPara>}>
             {agenda.hoje.length ? (
@@ -175,10 +215,12 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
             {agenda.faltasNoMes > 0 && <p className="nota">{plural(agenda.faltasNoMes, "falta", "faltas")} neste mês.</p>}
           </Cartao>
         )}
+        {!vazia && (
+          <>
         <Cartao classe="c3" titulo="Faturamento">
           <Contador className="grande" valor={r.faturamento} />
           {deFaturamento != null && <Variacao v={deFaturamento} contra={ehAtual ? `o mesmo período de ${nomeAnterior}` : nomeAnterior} />}
-          <p className="nota">{anterior ? `${nomeAnterior} fechou em ${reaisCurto(anterior.faturamento)}.` : "Primeiro mês com lançamentos."}</p>
+          <p className="nota">{anterior && anterior.faturamento > 0 ? `${nomeAnterior} fechou em ${reaisCurto(anterior.faturamento)}.` : "Primeiro mês com lançamentos."}</p>
         </Cartao>
         <Cartao classe="c3" titulo="Lucro líquido">
           <Contador className={`grande ${r.lucro < 0 ? "ruim" : ""}`} valor={r.lucro} />
@@ -207,23 +249,36 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
         </Cartao>
 
         <Cartao classe="c8">
-          <GraficoMeses titulo="Últimos 12 meses" pontos={grafico.map((g) => ({ rotulo: rotuloMes(g.mes), faturamento: g.faturamento, despesas: g.despesas, lucro: g.lucro }))} />
+          {temHistorico ? (
+            <>
+          <GraficoMeses titulo={anoCheio ? "Últimos 12 meses" : "Desde o primeiro lançamento"} pontos={desenho.map((g) => ({ rotulo: rotuloMes(g.mes), faturamento: g.faturamento, despesas: g.despesas, lucro: g.lucro }))} />
           <dl className="linha-numeros">
+            {melhorMes.faturamento > 0 && (
+              <div>
+                <dt>Melhor mês</dt>
+                <dd>
+                  {nomeDoMes(melhorMes.mes)} · {reaisCurto(melhorMes.faturamento)}
+                </dd>
+              </div>
+            )}
             <div>
-              <dt>Melhor mês</dt>
-              <dd>
-                {nomeDoMes(melhorMes.mes)} · {reaisCurto(melhorMes.faturamento)}
-              </dd>
+              <dt>Soma {anoCheio ? "de 12 meses" : desde}</dt>
+              <dd>{reaisCurto(periodo.reduce((s, g) => s + g.faturamento, 0))}</dd>
             </div>
             <div>
-              <dt>Soma de 12 meses</dt>
-              <dd>{reaisCurto(grafico.reduce((s, g) => s + g.faturamento, 0))}</dd>
-            </div>
-            <div>
-              <dt>Lucro de 12 meses</dt>
-              <dd>{reaisCurto(grafico.reduce((s, g) => s + g.lucro, 0))}</dd>
+              <dt>Lucro {anoCheio ? "de 12 meses" : desde}</dt>
+              <dd>{reaisCurto(periodo.reduce((s, g) => s + g.lucro, 0))}</dd>
             </div>
           </dl>
+            </>
+          ) : (
+            <>
+              <header className="cartao-topo">
+                <h2>Últimos 12 meses</h2>
+              </header>
+              <p className="vazio">O gráfico aparece com os primeiros lançamentos.</p>
+            </>
+          )}
         </Cartao>
         <Cartao classe="c4" titulo="De onde veio o faturamento">
           {fontes.some((f) => f.valor > 0) ? (
@@ -235,7 +290,11 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
             <LinkPara href={`${base}/vendas`}>Ver as vendas</LinkPara>
           </div>
         </Cartao>
+          </>
+        )}
 
+        {!vazia && (
+          <>
         {temWhatsapp && (
           <Cartao classe="c7" titulo="Conversas no WhatsApp" acao={<LinkPara href={`${base}/whatsapp`}>Todas</LinkPara>}>
             {conversas.length ? (
@@ -331,6 +390,9 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
             </p>
           </Cartao>
         </div>
+
+          </>
+        )}
 
         {pacote.abas.length > 0 && (
           <Cartao classe="c12" titulo={`Do seu negócio · ${pacote.nome}`} acao={pode(papel, "gerenciar") ? <LinkPara href={`${base}/pacote`}>Trocar pacote</LinkPara> : undefined}>

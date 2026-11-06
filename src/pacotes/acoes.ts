@@ -5,14 +5,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { obterDb } from "@/db";
-import { criarPadroesDaEmpresa } from "@/db/padroes";
-import { type Perfil, auditoria, categoriasDespesa, empresaUsuarios, empresas, fontesReceita } from "@/db/schema";
+import { type Perfil, auditoria, categoriasDespesa, empresas, fontesReceita } from "@/db/schema";
 import type { EstadoForm } from "@/lib/estado-form";
 import { PERFIS } from "@/lib/perfis";
 import { criarPadrao } from "@/lib/servidor/atendimento";
 import { exigirUsuario } from "@/lib/servidor/auth";
-import { UFS, errosPorCampo, esquemaEmpresa, formParaObjeto } from "@/lib/validacao";
+import { UFS, errosPorCampo, formParaObjeto } from "@/lib/validacao";
 import { exigirPermissao } from "@/servidor/acesso";
+import { montarEmpresa } from "@/servidor/empresa-nova";
 import { ORDEM_PACOTES, PACOTES, escolherPorPalavras } from "./catalogo";
 
 export interface Sugestao {
@@ -92,31 +92,9 @@ export async function criarEmpresaComPacote(_: EstadoForm, fd: FormData): Promis
   if (!r.success) return { erros: errosPorCampo(r.error), valores };
   const { nome, perfil, regime, cidade, uf } = r.data;
   if (uf && !(UFS as readonly string[]).includes(uf)) return { erros: { uf: "UF inválida" }, valores };
-  const p = PACOTES[perfil];
-  // "Não sei" começa no Simples, que é o regime da maioria das pequenas empresas; dá para trocar depois.
-  const empresa = esquemaEmpresa.safeParse({
-    nome,
-    atividade: p.fiscal.atividade,
-    cidade: cidade ?? "",
-    uf: uf ?? "",
-    regime: regime === "nao_sei" ? "simples" : regime,
-    anexoComercio: p.fiscal.anexoComercio ?? "",
-    anexoServicos: p.fiscal.anexoServicos ?? "",
-    sujeitoFatorR: p.fiscal.fatorR ? "on" : "",
-    perfil,
-  });
-  if (!empresa.success) return { erros: { _: Object.values(errosPorCampo(empresa.error))[0] ?? "Confira os dados." }, valores };
-
-  const id = await obterDb().transaction(async (tx) => {
-    const [e] = await tx.insert(empresas).values(empresa.data).returning({ id: empresas.id });
-    await tx.insert(empresaUsuarios).values({ empresaId: e.id, usuarioId: usuario.id, papel: "dono" });
-    await criarPadroesDaEmpresa(tx, e.id, empresa.data.atividade, perfil);
-    if (p.categoriasExtras.length)
-      await tx.insert(categoriasDespesa).values(p.categoriasExtras.map((c, i) => ({ empresaId: e.id, nome: c.nome, comportamento: c.comportamento, ordem: 20 + i })));
-    // Dentro da transação: registrarAuditoria só aceita o banco, então grava direto.
-    await tx.insert(auditoria).values({ empresaId: e.id, usuarioId: usuario.id, ator: "usuario", acao: "empresa.criar", entidade: "empresa", entidadeId: e.id, dados: { perfil, regime } });
-    return e.id;
-  });
+  const criada = await montarEmpresa(usuario.id, { nome, perfil, regime, cidade, uf });
+  if ("erro" in criada) return { erros: { _: criada.erro }, valores };
+  const id = criada.id;
   redirect(`/${id}`);
 }
 

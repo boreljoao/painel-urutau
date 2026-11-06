@@ -1544,6 +1544,8 @@ select {
 
 /* ── Entrar e escolher empresa ───────────────────────────────────────── */
 .entrar {
+  /* Fora de uma empresa não há cor de ramo: os botões usam a cor da marca. */
+  --cor: #141b34;
   display: grid;
   place-items: center;
   align-content: center;
@@ -1607,7 +1609,16 @@ select {
   padding: 0;
   list-style: none;
 }
-.lista-empresas a {
+.lista-empresas button {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lista-empresas a,
+.lista-empresas button {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1616,11 +1627,13 @@ select {
   background: var(--tom);
   transition: background-color 200ms ease;
 }
-.lista-empresas a > span:last-child {
+.lista-empresas a > span:last-child,
+.lista-empresas button > span:last-child {
   display: grid;
 }
 @media (hover: hover) and (pointer: fine) {
-  .lista-empresas a:hover {
+  .lista-empresas a:hover,
+  .lista-empresas button:hover {
     background: var(--tom-2);
   }
 }
@@ -3185,4 +3198,243 @@ ul.lista-escolha,
   .dias-chips {
     gap: 4px;
   }
+}
+
+/* ── Cadastro, demonstração, opinião e primeiros passos ─────────────── */
+.entrar-troca {
+  text-align: center;
+}
+.campo-isca {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.campo .erro {
+  font-weight: 500;
+}
+.aviso-demo {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--tom);
+}
+.faixa-demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--cor-clara, var(--tom));
+  font-size: 14px;
+}
+.tela-pe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 40px;
+  padding: 16px 0 8px;
+  border-top: 1px solid var(--linha);
+}
+.botao-opiniao {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1.5px solid var(--linha);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--suave);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .botao-opiniao:hover {
+    border-color: var(--tinta);
+    color: var(--tinta);
+  }
+}
+.opiniao-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px 0;
+}
+.opiniao-form .campo span {
+  font-weight: 500;
+  color: var(--suave);
+}
+.opiniao-form textarea {
+  padding: 12px 14px;
+  border: 1.5px solid var(--linha);
+  border-radius: 12px;
+  background: var(--superficie);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  resize: vertical;
+}
+.opiniao-form textarea:focus-visible {
+  outline: none;
+  border-color: var(--tinta);
+}
+.opiniao-form .janela-pe {
+  margin: 0 -20px;
+}
+.opiniao-contato {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.opiniao-contato input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--tinta);
+}
+.opiniao-ok {
+  padding: 32px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+.primeiros-passos > .nota {
+  max-width: 62ch;
+  margin-bottom: 12px;
+}
+.passos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.passos a {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  height: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--tom);
+  transition: background-color 200ms ease;
+}
+.passos a > span:nth-child(2) {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+}
+.passos a > .ic {
+  margin-top: 6px;
+  color: var(--apagado);
+}
+@media (hover: hover) and (pointer: fine) {
+  .passos a:hover {
+    background: var(--tom-2);
+  }
+}
+.passo-num {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--cor);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+.passos .feito .passo-num {
+  background: var(--bom);
+}
+.passos .feito strong {
+  color: var(--suave);
+  text-decoration: line-through;
+  text-decoration-color: var(--apagado);
+}
+
+/* ── Termos, privacidade e aceite ───────────────────────────────────── */
+.tela-pe-links {
+  display: flex;
+  gap: 16px;
+  color: var(--suave);
+  font-size: 13px;
+}
+.feito .link {
+  color: inherit;
+}
+.aceite {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.aceite input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  accent-color: #141b34;
+}
+.legal {
+  --cor: #141b34;
+  min-height: 100vh;
+  padding: 40px 16px 64px;
+}
+.legal-texto {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 36px 32px;
+  border-radius: 24px;
+  background: var(--superficie);
+  font-size: 16px;
+  line-height: 1.65;
+}
+.legal-texto h1 {
+  margin: 12px 0 4px;
+  font-size: clamp(26px, 4vw, 34px);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.legal-texto h2 {
+  margin: 32px 0 8px;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+.legal-texto p,
+.legal-texto ul {
+  margin: 0 0 12px;
+}
+.legal-texto ul {
+  padding-left: 20px;
+}
+.legal-texto li + li {
+  margin-top: 6px;
+}
+.legal-pe {
+  display: flex;
+  gap: 20px;
+  margin-top: 36px;
+  padding-top: 16px;
+  border-top: 1px solid var(--linha);
+  font-size: 14px;
+}
+@media (max-width: 560px) {
+  .legal-texto {
+    padding: 24px 18px;
+  }
+}
+.legal-texto p .link,
+.legal-texto li .link,
+.aceite .link {
+  display: inline;
+  font-size: inherit;
 }
