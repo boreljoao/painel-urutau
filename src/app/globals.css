@@ -4130,3 +4130,30 @@ ul.lista-escolha,
   .rv-compromissos a:hover { background: var(--tom); }
 }
 @media (max-width: 1180px) { .rv-resultado, .rv-patio { grid-column: 1 / -1; } }
+
+/* ─── Calendário comercial da revenda ──────────────────────────────────── */
+.agenda2-tipos { margin-top: -6px; }
+.agenda2-tipos .agenda2-chip i { width: 10px; height: 10px; border-radius: 3px; background: var(--apagado); }
+.agenda2-chip.tipo-vendas i { background: #0f766e; }
+.agenda2-chip.tipo-entregas i { background: #16a34a; }
+.agenda2-chip.tipo-testdrive i { background: #3b82f6; }
+.agenda2-chip.tipo-retornos i { background: #f59e0b; }
+.agenda2-chip.tipo-visitas i { background: #8b5cf6; }
+.agenda2 .marcacao.tipo-entregas { border-left-color: #16a34a; background: #e6f5ec; }
+.agenda2 .marcacao.tipo-testdrive { border-left-color: #3b82f6; background: #e8f0ff; }
+.agenda2 .marcacao.tipo-retornos { border-left-color: #f59e0b; background: #fff4e0; }
+.agenda2 .marcacao.tipo-visitas { border-left-color: #8b5cf6; background: #f1ecff; }
+.agenda2 .marcacao[class*="tipo-"].situacao-marcado { border-left-style: dashed; }
+.agenda2 .marcacao[class*="tipo-"].situacao-cancelado, .agenda2 .marcacao[class*="tipo-"].situacao-faltou { opacity: 0.55; }
+.agenda2-mes-item.tipo-vendas { background: #ccfbf1; color: #0f766e; font-weight: 700; }
+.semana-dia .semana-vendas { display: block; margin-top: 2px; padding: 1px 6px; border-radius: 6px; background: #ccfbf1; color: #0f766e; font-size: 11px; font-weight: 700; }
+.agenda2-vendas ul { display: grid; gap: 8px; margin: 0 0 10px; padding: 0; list-style: none; }
+.agenda2-vendas a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--linha); border-left: 4px solid #0f766e; border-radius: 10px; color: var(--tinta); }
+.agenda2-vendas a > span:first-child { display: grid; min-width: 0; }
+.agenda2-vendas small { color: var(--suave); }
+.agenda2-venda-valor { display: grid; justify-items: end; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.agenda2-venda-valor small.bom { color: var(--bom); }
+.agenda2-venda-valor small.ruim { color: var(--ruim); }
+.agenda2-vendas-total { display: flex; justify-content: space-between; margin: 0; padding-top: 10px; border-top: 1px solid var(--linha); color: var(--suave); }
+.agenda2-vendas-total .bom { color: var(--bom); }
+@media (hover: hover) and (pointer: fine) { .agenda2-vendas a:hover { background: var(--tom); } }

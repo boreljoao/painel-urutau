@@ -12,6 +12,7 @@ import { registrarAuditoria } from "@/lib/servidor/auditoria";
 import { errosPorCampo, formParaObjeto, normalizarTelefone, valorEmReais } from "@/lib/validacao";
 import { exigirPermissao } from "@/servidor/acesso";
 import { agendamentoDaEmpresa, listarAgenda } from "@/servidor/agenda";
+import { veiculoDaEmpresa } from "@/servidor/patio";
 import { agendaDoPacote } from "./catalogo";
 import { choques, horaValida } from "./agenda";
 
@@ -120,6 +121,8 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
 
   const clienteId = bloquear ? null : await resolverCliente(empresaId, ctx.usuario.id, d);
   const online = !bloquear && valores.online === "1";
+  // Revenda: o carro do pátio que a visita, o test drive ou a entrega envolve.
+  const veiculoId = !bloquear && valores.veiculoId && (await veiculoDaEmpresa(empresaId, String(valores.veiculoId))) ? String(valores.veiculoId) : null;
   const repetir = !id && !bloquear ? Math.min(Math.max(Number(valores.repetir) || 1, 1), 52) : 1;
   const dados = {
     data: d.data,
@@ -133,6 +136,7 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
     valorCentavos: d.valor,
     observacao: d.observacao,
     online,
+    veiculoId,
   };
   const db = obterDb();
   if (id) {

@@ -35,6 +35,19 @@ import { obterDb } from "@/db";
 import { agentesWhatsapp } from "@/db/schema";
 import { reais } from "@/componentes/formato";
 import { BotaoAcao } from "@/componentes/vivos";
+import { carrosNoPatio, vendidosEntre } from "@/servidor/patio";
+
+/** Revenda: o calendário comercial separa os compromissos pelo tipo (pelo nome do serviço). */
+type TipoComercial = "vendas" | "testdrive" | "entregas" | "retornos" | "visitas";
+const TIPOS: { id: TipoComercial; nome: string }[] = [
+  { id: "vendas", nome: "Vendas" },
+  { id: "entregas", nome: "Entregas" },
+  { id: "testdrive", nome: "Test drives" },
+  { id: "retornos", nome: "Retornos" },
+  { id: "visitas", nome: "Visitas" },
+];
+const tipoDe = (servico: string): Exclude<TipoComercial, "vendas"> =>
+  /test/i.test(servico) ? "testdrive" : /entrega/i.test(servico) ? "entregas" : /retorno|p[óo]s|revis/i.test(servico) ? "retornos" : "visitas";
 
 export const metadata = { title: "Agenda" };
 export const dynamic = "force-dynamic";
@@ -61,6 +74,7 @@ export default async function Agenda({
     editar?: string;
     salvo?: string;
     excluido?: string;
+    tipo?: string;
   }>;
 }) {
   const { empresaId } = await params;
@@ -92,9 +106,12 @@ export default async function Agenda({
   const ver = sp.ver === "dia" ? "dia" : sp.ver === "mes" ? "mes" : "semana";
   const seg = segundaDe(dia);
   const podeMarcar = pode(ctx.papel, "lancar");
+  const revenda = ctx.empresa.perfil === "revenda_veiculos";
+  const tipo = revenda && TIPOS.some((t) => t.id === sp.tipo) ? (sp.tipo as TipoComercial) : undefined;
   const filtros = {
     dia: dia === hj ? undefined : dia,
     ver: ver === "semana" ? undefined : ver,
+    tipo,
   };
   const link = (mudar: Record<string, string | undefined>) => endereco(base, { ...filtros, ...mudar });
 
@@ -102,12 +119,30 @@ export default async function Agenda({
   const abrindo = podeMarcar && (!!sp.novo || !!editando);
   const primeiroDoMes = `${dia.slice(0, 7)}-01` as Data;
   const inicioMes = segundaDe(primeiroDoMes);
-  const [semana, opcoes, proximos, doMes] = await Promise.all([
+  const periodoDe = ver === "mes" ? inicioMes : seg;
+  const periodoAte = somarDias(periodoDe, ver === "mes" ? 41 : 6);
+  const [semanaToda, opcoes, proximos, doMesTodo, patio, vendidos] = await Promise.all([
     listarAgenda(empresaId, seg, somarDias(seg, 7)),
     abrindo ? opcoesDaAgenda(empresaId) : null,
     listarAgenda(empresaId, hj, somarDias(hj, 31)),
     ver === "mes" ? listarAgenda(empresaId, inicioMes, somarDias(inicioMes, 42)) : null,
+    revenda ? carrosNoPatio(empresaId) : [],
+    revenda ? vendidosEntre(empresaId, periodoDe, periodoAte) : [],
   ]);
+  // Filtro do calendário comercial: os bloqueios ficam sempre; "Vendas" mostra só as vendas.
+  const doTipo = <T extends { servico: string; status: string }>(l: T[]) =>
+    !tipo ? l : tipo === "vendas" ? l.filter((a) => a.status === "bloqueado") : l.filter((a) => a.status === "bloqueado" || tipoDe(a.servico) === tipo);
+  const semana = doTipo(semanaToda);
+  const doMes = doMesTodo ? doTipo(doMesTodo) : null;
+  const mostrarVendas = revenda && (!tipo || tipo === "vendas");
+  const vendasPorDia = new Map<Data, typeof vendidos>();
+  if (mostrarVendas) for (const c of vendidos) if (c.vendidoEm) vendasPorDia.set(c.vendidoEm, [...(vendasPorDia.get(c.vendidoEm) ?? []), c]);
+  const nomeCarro = new Map([...patio, ...vendidos].map((c) => [c.id, [c.modelo, c.ano].filter(Boolean).join(" ")]));
+  const contagemTipo = (t: TipoComercial) =>
+    t === "vendas"
+      ? vendidos.filter((c) => c.vendidoEm && c.vendidoEm >= seg && c.vendidoEm < somarDias(seg, 7)).length
+      : semanaToda.filter((a) => ocupa(a.status) && a.status !== "bloqueado" && tipoDe(a.servico) === t).length;
+  const veiculosJanela = revenda ? patio.map((c) => ({ id: c.id, nome: [c.modelo, c.ano, c.placa].filter(Boolean).join(" · ") })) : undefined;
 
   const porDia = new Map<Data, LinhaAgenda[]>();
   for (const a of semana) porDia.set(a.data, [...(porDia.get(a.data) ?? []), a]);
@@ -154,7 +189,10 @@ export default async function Agenda({
             valor: a.valorCentavos ? (a.valorCentavos / 100).toFixed(2).replace(".", ",") : "",
             observacao: a.observacao,
             online: a.online ? "1" : "",
+            veiculoId: a.veiculoId ?? "",
           }}
+          veiculos={veiculosJanela}
+          semOnline={revenda}
           clientes={opcoes.clientes}
           servicos={[...new Set([...opcoes.servicos, ...cfg.servicos])]}
           profissionais={opcoes.profissionais}
@@ -208,6 +246,8 @@ export default async function Agenda({
           fechar={fechar}
           aposSalvar={aposSalvar}
           rotuloServico={cfg.rotuloServico}
+          veiculos={veiculosJanela}
+          semOnline={revenda}
         />
       );
     }
@@ -235,6 +275,7 @@ export default async function Agenda({
     (a) => ocupa(a.status) && a.status !== "bloqueado" && a.status !== "atendido" && a.status !== "faltou" && (a.data > hj || minutos(a.hora) + a.duracaoMin > agora),
   );
   const titulo = ctx.empresa.perfil === "consultorio" ? `Agenda de ${atendPlural}` : aba.titulo;
+  const vendasPeriodo = vendidos.filter((c) => c.vendidoEm && c.vendidoEm >= periodoDe && c.vendidoEm <= periodoAte);
   const nomeHoje = nomeDoDia(hj);
   const subtitulo = `${nomeHoje.charAt(0).toUpperCase()}${nomeHoje.slice(1)}${nomeHoje === "sábado" || nomeHoje === "domingo" ? "" : "-feira"}, ${diaMes(hj)} de ${hj.slice(0, 4)}`;
   const diasGrade = ver === "dia" ? [dia] : dias;
@@ -310,6 +351,19 @@ export default async function Agenda({
         )}
       </div>
 
+      {revenda && (
+        <nav className="agenda2-chips agenda2-tipos" aria-label="Filtrar por tipo">
+          <Link href={link({ tipo: undefined })} className={`agenda2-chip${!tipo ? " ativo" : ""}`} scroll={false}>
+            Tudo
+          </Link>
+          {TIPOS.map((t) => (
+            <Link key={t.id} href={link({ tipo: tipo === t.id ? undefined : t.id })} className={`agenda2-chip tipo-${t.id}${tipo === t.id ? " ativo" : ""}`} scroll={false}>
+              <i aria-hidden /> {t.nome} <b>{contagemTipo(t.id)}</b>
+            </Link>
+          ))}
+        </nav>
+      )}
+
       {janela}
       {sp.salvo && <AvisoPagina texto="Agenda atualizada." limpar={link({})} />}
       {sp.excluido && <AvisoPagina texto="Horário apagado." desfazer={restaurarAgendamento.bind(null, empresaId, sp.excluido)} limpar={link({})} />}
@@ -363,6 +417,11 @@ export default async function Agenda({
                       scroll={false}
                     >
                       <strong>{Number(d.slice(8))}</strong>
+                      {(vendasPorDia.get(d) ?? []).map((c) => (
+                        <span key={c.id} className="agenda2-mes-item tipo-vendas">
+                          Venda · {c.modelo.split(" ")[0]}
+                        </span>
+                      ))}
                       {lista.slice(0, 3).map((a) => (
                         <span key={a.id} className={`agenda2-mes-item situacao-${a.status}`} data-vivo={vivo(a)}>
                           {a.hora} {a.status === "bloqueado" ? "Bloqueado" : a.nome.split(" ")[0]}
@@ -384,6 +443,11 @@ export default async function Agenda({
                       <span>{nomeDoDia(d, true)}</span>
                       <strong>{Number(d.slice(8))}</strong>
                       {n > 0 && <em>{n}</em>}
+                      {(vendasPorDia.get(d)?.length ?? 0) > 0 && (
+                        <small className="semana-vendas" title={vendasPorDia.get(d)!.map((c) => c.modelo).join(", ")}>
+                          {vendasPorDia.get(d)!.length} {vendasPorDia.get(d)!.length === 1 ? "venda" : "vendas"}
+                        </small>
+                      )}
                     </Link>
                   );
                 })}
@@ -422,7 +486,7 @@ export default async function Agenda({
                         data-vivo={vivo(a)}
                         href={podeMarcar ? link({ dia: d, editar: a.id, ver: verLink }) : link({ dia: d, ver: "dia" })}
                         scroll={false}
-                        className={`marcacao situacao-${a.status} ${a.serieId && a.status !== "bloqueado" ? "recorrente" : ""} ${a.duracaoMin < 40 ? "curta" : ""} ${a.id === proximoGeral?.id ? "proximo" : ""}`}
+                        className={`marcacao situacao-${a.status} ${revenda && a.status !== "bloqueado" ? `tipo-${tipoDe(a.servico)}` : ""} ${a.serieId && a.status !== "bloqueado" ? "recorrente" : ""} ${a.duracaoMin < 40 ? "curta" : ""} ${a.id === proximoGeral?.id ? "proximo" : ""}`}
                         style={{
                           top: `${(minutos(a.hora) - faixa.inicio * 60) * pxMin}px`,
                           height: `${Math.max(a.duracaoMin * pxMin, 22)}px`,
@@ -445,7 +509,7 @@ export default async function Agenda({
                               {a.origem === "online" && <em className="marcacao-online">online</em>}
                             </strong>
                             <span className="marcacao-det">
-                              {[a.serieId ? `${a.servico || cfg.atendimento} recorrente` : a.servico, a.online ? "Online" : "", a.profissional].filter(Boolean).join(" · ") || `${a.duracaoMin} min`}
+                              {[a.serieId ? `${a.servico || cfg.atendimento} recorrente` : a.servico, a.veiculoId ? nomeCarro.get(a.veiculoId) : "", a.online ? "Online" : "", a.profissional].filter(Boolean).join(" · ") || `${a.duracaoMin} min`}
                             </span>
                           </>
                         )}
@@ -460,6 +524,39 @@ export default async function Agenda({
         </section>
 
         <aside className="agenda2-lado">
+          {revenda && (
+            <section className="cartao agenda2-vendas">
+              <h2>Vendas {ver === "mes" ? "do período" : "da semana"}</h2>
+              {vendasPeriodo.length ? (
+                <ul>
+                  {vendasPeriodo.map((c) => (
+                    <li key={c.id}>
+                      <Link href={`/${empresaId}/patio?ver=vendido&editar=${c.id}`}>
+                        <span>
+                          <strong>{c.modelo}</strong>
+                          <small>
+                            {diaCurto(c.vendidoEm!)} · {c.dias} {c.dias === 1 ? "dia" : "dias"} no pátio
+                          </small>
+                        </span>
+                        <span className="agenda2-venda-valor">
+                          {reais(c.valorVendaCentavos ?? 0)}
+                          <small className={(c.lucro ?? 0) < 0 ? "ruim" : "bom"}>lucro {reais(c.lucro ?? 0)}</small>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="vazio">Nenhum carro vendido {ver === "mes" ? "neste período" : "nesta semana"}.</p>
+              )}
+              {vendasPeriodo.length > 0 && (
+                <p className="agenda2-vendas-total">
+                  <span>Total {reais(vendasPeriodo.reduce((t, c) => t + (c.valorVendaCentavos ?? 0), 0))}</span>
+                  <strong className="bom">Lucro {reais(vendasPeriodo.reduce((t, c) => t + (c.lucro ?? 0), 0))}</strong>
+                </p>
+              )}
+            </section>
+          )}
           {podeMarcar && lembretes.length > 0 && <LembretesHoje empresaId={empresaId} itens={lembretes} automatico={automatico} />}
           <section className="cartao agenda2-proximo">
             <h2>
@@ -581,7 +678,7 @@ export default async function Agenda({
                       <span className={`pilula situacao-${a.status}`}>{NOME_STATUS[a.status]}</span>
                     </p>
                     <p className="atendimento-det">
-                      {[a.servico, a.profissional && `com ${a.profissional}`, a.sala, a.valorCentavos ? reais(a.valorCentavos) : ""].filter(Boolean).join(" · ") ||
+                      {[a.servico, a.veiculoId ? nomeCarro.get(a.veiculoId) : "", a.profissional && `com ${a.profissional}`, a.sala, a.valorCentavos ? reais(a.valorCentavos) : ""].filter(Boolean).join(" · ") ||
                         `${a.duracaoMin} min`}
                     </p>
                     {a.observacao && <p className="nota">{a.observacao}</p>}

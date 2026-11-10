@@ -60,8 +60,8 @@ export const PACOTES: Record<Perfil, Pacote> = {
       },
       {
         id: "visitas",
-        titulo: "Visitas e test drive",
-        desc: "Quem vem ver qual carro e quando",
+        titulo: "Calendário comercial",
+        desc: "Visitas, test drives, entregas e retornos",
         icone: "agenda",
         rota: "agenda",
         vaiTer: ["Horários marcados pela equipe e pelo atendente do WhatsApp", "Qual carro cada visita quer ver", "Lembrete automático para o cliente"],
@@ -73,7 +73,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
     ],
     fiscal: { atividade: "ambos", anexoComercio: "I", anexoServicos: "III" },
     destaques: ["Carros no pátio", "Margem por carro", "Dias parados"],
-    agenda: { inicio: 9, fim: 18, duracao: 60, pessoa: "Cliente", atendimento: "Visita", servicos: ["Visita", "Test drive", "Avaliação do carro na troca", "Entrega do carro"] },
+    agenda: { inicio: 9, fim: 18, duracao: 60, pessoa: "Cliente", atendimento: "Visita", servicos: ["Visita", "Test drive", "Avaliação do carro na troca", "Entrega do carro", "Retorno pós-venda"] },
   },
   consultorio: {
     perfil: "consultorio",

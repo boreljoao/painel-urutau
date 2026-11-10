@@ -44,6 +44,10 @@ interface Opcoes {
   edicao?: Edicao;
   /** Nome do campo do serviço no ramo: Procedimento, Tipo de sessão… */
   rotuloServico?: string;
+  /** Revenda: os carros do pátio, para ligar a visita a um deles. */
+  veiculos?: { id: string; nome: string }[];
+  /** Na revenda não há sessão online. */
+  semOnline?: boolean;
 }
 
 const formatarTel = (t: string | null) => {
@@ -154,13 +158,25 @@ function FormAgendamento(o: Opcoes & { salvo: (t: string, v?: Record<string, str
           ))}
         </datalist>
       </Campo>
-      {!bloquear && (
+      {!bloquear && o.veiculos && (
+        <Campo rotulo="Carro" erro={erros.veiculoId} largo>
+          <select name="veiculoId" defaultValue={v.veiculoId ?? ""}>
+            <option value="">Nenhum carro específico</option>
+            {o.veiculos.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </Campo>
+      )}
+      {!bloquear && !o.semOnline && (
         <label className="campo-check largo">
           <input type="checkbox" name="online" value="1" defaultChecked={v.online === "1"} />
           <span>Sessão online (vídeo ou telefone)</span>
         </label>
       )}
-      {!o.edicao && !bloquear && (
+      {!o.edicao && !bloquear && !o.semOnline && (
         <label className="campo-form largo">
           <span>Repetir</span>
           <select name="repetir" defaultValue={v.repetir ?? "1"}>

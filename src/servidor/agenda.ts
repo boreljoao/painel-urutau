@@ -22,6 +22,7 @@ const colunas = {
   origem: agendamentos.origem,
   online: agendamentos.online,
   serieId: agendamentos.serieId,
+  veiculoId: agendamentos.veiculoId,
   tokenPaciente: agendamentos.tokenPaciente,
   lembretes: agendamentos.lembretes,
   respondidoEm: agendamentos.respondidoEm,
