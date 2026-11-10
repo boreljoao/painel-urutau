@@ -3438,3 +3438,89 @@ ul.lista-escolha,
   display: inline;
   font-size: inherit;
 }
+
+/* ---------- Instagram ---------- */
+.ig { display: grid; gap: 16px; }
+.ig-criar { display: grid; gap: 16px; }
+.ig-criar form { display: grid; gap: 12px; }
+.ig-criar textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--linha);
+  border-radius: 12px;
+  background: var(--tom);
+  font: inherit;
+  font-size: 16px;
+  resize: vertical;
+}
+.ig-criar textarea:focus-visible { outline: 2px solid var(--cor); outline-offset: 1px; }
+.ig-criar .botao { justify-self: start; }
+.ig-ideias { display: flex; flex-wrap: wrap; gap: 6px; }
+.ig-ideias .pilula { cursor: pointer; padding: 6px 12px; font-size: 13px; }
+.ig-erro { margin: 0; color: var(--ruim); font-size: 14px; }
+.ig-conexao { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 14px; border-top: 1px solid var(--linha); }
+.ig-conexao p { margin: 0; }
+.ig-conexao.aberta { display: grid; justify-items: start; }
+.ig-conexao.aberta .campo { justify-self: stretch; }
+.ig-conexao ol { margin: 0; padding-left: 18px; }
+.ig-conexao.ligado { font-size: 14px; }
+.ig-ponto { width: 10px; height: 10px; border-radius: 50%; background: var(--bom); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bom) 18%, transparent); }
+.ig-canais { display: flex; flex-wrap: wrap; gap: 8px; }
+.ig-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.ig-post { display: grid; gap: 14px; }
+.ig-tema { margin: 0; color: var(--suave); font-size: 14px; }
+.ig-etapas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.ig-etapas li { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--apagado); text-align: center; }
+.ig-etapas span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--tom-2);
+  font-weight: 700;
+  transition: background 0.3s var(--ease), color 0.3s var(--ease);
+}
+.ig-etapas .ic { width: 16px; height: 16px; }
+.ig-etapas li.feita { color: var(--tinta); }
+.ig-etapas li.feita span { background: var(--cor); color: #fff; }
+.ig-etapas li.agora { color: var(--tinta); font-weight: 600; }
+.ig-etapas li.agora span { background: var(--cor-clara); color: var(--cor); box-shadow: 0 0 0 2px var(--cor); }
+.ig-post.trabalhando .ig-etapas li.agora span { animation: ig-pulso 1.2s var(--ease) infinite; }
+.ig-etapas li.falhou span { background: color-mix(in srgb, var(--ruim) 15%, transparent); color: var(--ruim); }
+@keyframes ig-pulso { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--cor) 25%, transparent); } }
+.ig-corpo { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.ig-arte { width: 100%; height: auto; aspect-ratio: 4 / 5; border-radius: 14px; background: #16191d; }
+.ig-arte-espera { background: linear-gradient(110deg, var(--tom-2) 30%, var(--tom) 50%, var(--tom-2) 70%); background-size: 200% 100%; animation: ig-brilho 1.4s linear infinite; }
+@keyframes ig-brilho { to { background-position: -200% 0; } }
+.ig-texto { display: grid; gap: 12px; min-width: 0; }
+.ig-nota { display: flex; align-items: center; gap: 12px; }
+.ig-nota strong { font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; }
+.ig-nota span { display: grid; font-weight: 600; }
+.ig-nota small { color: var(--suave); font-weight: 400; }
+.ig-nota.forte strong { color: var(--bom); }
+.ig-nota.ok strong { color: var(--alerta); }
+.ig-nota.fraco strong { color: var(--ruim); }
+.ig-gancho { margin: 0; font-size: 18px; font-weight: 700; }
+.ig-legenda { white-space: pre-wrap; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.ig-legenda mark { background: var(--cor-clara); color: inherit; border-radius: 4px; }
+.ig-checagens { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; }
+.ig-checagens li { display: grid; grid-template-columns: 18px 1fr; column-gap: 6px; font-size: 13px; font-weight: 600; }
+.ig-checagens li small { grid-column: 2; color: var(--suave); font-weight: 400; }
+.ig-checagens .ic { width: 16px; height: 16px; margin-top: 1px; }
+.ig-checagens li.ok .ic { color: var(--bom); }
+.ig-checagens li.atencao .ic { color: var(--alerta); }
+.ig-reel summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.ig-reel ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+.ig-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ig-acoes .botao .ic { width: 16px; height: 16px; }
+.ig-enviado { color: var(--bom); font-weight: 600; font-size: 14px; }
+.ig-excluir { margin-left: auto; color: var(--suave); }
+@media (max-width: 720px) {
+  .ig-corpo { grid-template-columns: 1fr; }
+  .ig-arte { max-width: 360px; }
+  .ig-etapas li { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ig-post.trabalhando .ig-etapas li.agora span, .ig-arte-espera { animation: none; }
+}

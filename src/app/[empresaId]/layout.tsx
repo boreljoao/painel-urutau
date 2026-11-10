@@ -32,6 +32,7 @@ export default async function LayoutEmpresa({ children, params }: { children: Re
     pode(papel, "ver_lancamentos") && { href: `${base}/vendas`, nome: pacote.vocab.vendas, icone: "vendas" as const },
     pode(papel, "ver_clientes") && { href: `${base}/clientes`, nome: pacote.vocab.clientes, icone: "clientes" as const },
     temWhatsapp && pode(papel, "ver_clientes") && { href: `${base}/whatsapp`, nome: "WhatsApp", icone: "whatsapp" as const },
+    pode(papel, "lancar") && { href: `${base}/instagram`, nome: "Instagram", icone: "instagram" as const },
     // Quem trabalha com horário marcado usa a agenda todo dia: no celular ela toma o lugar do financeiro na barra.
     pode(papel, "ver_painel") && { href: `${base}/financeiro`, nome: "Financeiro", icone: "financeiro" as const, foraDaBarra: temAgenda },
     // As abas do ramo: o que faz este painel ser de uma confeitaria, de uma revenda, de um consultório…
