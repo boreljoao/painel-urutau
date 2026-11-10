@@ -4056,3 +4056,77 @@ ul.lista-escolha,
 .conf-respostas li { display: flex; align-items: center; gap: 10px; }
 .conf-respostas li > span:last-child { display: grid; }
 @media (max-width: 1100px) { .conf-grade { grid-template-columns: minmax(0, 1fr); } }
+
+/* ─── Pátio da revenda ─────────────────────────────────────────────────── */
+.patio .topo-acoes { display: flex; align-items: center; gap: 10px; }
+.patio-resumo { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.patio-resumo .cartao { display: grid; gap: 4px; padding: 14px 16px; }
+.patio-resumo span { color: var(--suave); font-size: 13px; }
+.patio-resumo strong { font-size: 24px; letter-spacing: -0.02em; }
+.patio-resumo .alerta { border-color: #f6dfb4; background: #fffaf0; }
+.patio-resumo .alerta strong { color: #b45309; }
+.agenda2-chip.ativo { border-color: var(--cor); background: var(--cor-clara, #e3f1ea); color: var(--cor); }
+.agenda2-chip b { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--tom-2); font-size: 12px; text-align: center; }
+.patio-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.patio-carro { display: grid; gap: 14px; padding: 16px; color: var(--tinta); border-left: 4px solid var(--linha); transition: transform 200ms var(--ease), box-shadow 200ms var(--ease); }
+.patio-carro.veiculo-disponivel { border-left-color: #16a34a; }
+.patio-carro.veiculo-reservado { border-left-color: #f59e0b; }
+.patio-carro.veiculo-preparacao { border-left-color: #6366f1; }
+.patio-carro.veiculo-vendido { border-left-color: #94a3b8; }
+.patio-carro header { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; }
+.patio-carro header > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.patio-carro header strong { font-size: 16px; overflow-wrap: anywhere; }
+.patio-carro header small { color: var(--suave); }
+.patio-icone { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--tom-2); }
+.patio-icone .ic { width: 22px; height: 22px; color: var(--suave); }
+.patio-carro dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.patio-carro dt { color: var(--suave); font-size: 12px; }
+.patio-carro dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.patio-carro dd small { color: var(--suave); font-weight: 600; }
+.patio-carro dd.bom { color: var(--bom); }
+.patio-carro dd.ruim { color: var(--ruim); }
+.patio-carro footer { display: flex; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px solid var(--linha); color: var(--suave); font-size: 13px; }
+.patio-carro footer .ic { width: 16px; height: 16px; }
+.patio-carro footer.alerta { color: #b45309; font-weight: 600; }
+.pilula.veiculo-disponivel { background: #e6f5ec; color: #18794a; }
+.pilula.veiculo-reservado { background: #fff4e0; color: #b45309; }
+.pilula.veiculo-preparacao { background: #eef0ff; color: #4f46e5; }
+.pilula.veiculo-vendido { background: var(--tom-2); color: var(--suave); }
+.vazio-grande { display: grid; justify-items: center; gap: 12px; padding: 40px 20px; text-align: center; color: var(--suave); }
+.vazio-grande > .ic { width: 40px; height: 40px; }
+.patio-lucro-previo { margin: 0; padding: 10px 12px; border-radius: 10px; background: #e6f5ec; color: #18794a; font-weight: 700; }
+.patio-lucro-previo.ruim { background: #fdecea; color: var(--ruim); }
+@media (hover: hover) and (pointer: fine) {
+  .patio-carro:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgb(0 0 0 / 0.07); }
+}
+@media (max-width: 900px) { .patio-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ─── Visão geral da revenda ───────────────────────────────────────────── */
+.rv-resultado { grid-column: span 8; }
+.rv-patio { grid-column: span 4; display: grid; gap: 12px; align-content: start; color: var(--tinta); }
+.rv-compromissos { grid-column: 1 / -1; }
+.rv-tabela td strong { display: block; }
+.rv-tabela td small { color: var(--suave); }
+.rv-tabela td.bom { color: var(--bom); font-weight: 700; }
+.rv-tabela td.ruim { color: var(--ruim); font-weight: 700; }
+.rv-margem { display: inline-block; min-width: 64px; padding: 2px 8px; border-radius: 8px; background: linear-gradient(90deg, #d7efe1 var(--m), var(--tom-2) var(--m)); font-weight: 700; text-align: right; }
+.rv-barra { display: flex; height: 12px; overflow: hidden; border-radius: 999px; background: var(--tom-2); }
+.rv-barra span { height: 100%; transition: width 600ms var(--ease); }
+.rv-barra .disponivel, .rv-legenda .disponivel::before { background: #16a34a; }
+.rv-barra .reservado, .rv-legenda .reservado::before { background: #f59e0b; }
+.rv-barra .preparacao, .rv-legenda .preparacao::before { background: #6366f1; }
+.rv-legenda { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; color: var(--suave); }
+.rv-legenda li { display: flex; align-items: center; gap: 8px; }
+.rv-legenda li::before { content: ""; width: 10px; height: 10px; border-radius: 3px; }
+.rv-legenda b { color: var(--tinta); }
+.rv-compromissos ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.rv-compromissos a { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--linha); border-radius: 12px; color: var(--tinta); }
+.rv-compromissos a > span:nth-child(2) { display: grid; min-width: 0; }
+.rv-compromissos small { overflow: hidden; color: var(--suave); text-overflow: ellipsis; white-space: nowrap; }
+.rv-quando { display: grid; justify-items: center; min-width: 58px; padding: 6px 8px; border-radius: 10px; background: var(--tom-2); font-variant-numeric: tabular-nums; font-size: 13px; }
+.rv-quando b { font-size: 12px; text-transform: capitalize; }
+@media (hover: hover) and (pointer: fine) {
+  .rv-patio:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgb(0 0 0 / 0.07); }
+  .rv-compromissos a:hover { background: var(--tom); }
+}
+@media (max-width: 1180px) { .rv-resultado, .rv-patio { grid-column: 1 / -1; } }

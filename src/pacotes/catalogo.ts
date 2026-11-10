@@ -55,6 +55,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
         titulo: "Pátio",
         desc: "Os carros do galpão, um por um",
         icone: "carro",
+        rota: "patio",
         vaiTer: ["Cada carro com placa, modelo, ano, km e fotos", "Custo de compra e gastos de preparação", "Preço de venda e margem do carro", "Dias parado no pátio e capital parado"],
       },
       {

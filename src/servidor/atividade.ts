@@ -37,10 +37,14 @@ const TEXTO: Record<string, { texto: string; icone: NomeIcone; link?: (id: strin
   "agenda.cancelado": { texto: "Horário cancelado", icone: "alerta", link: () => "agenda" },
   "agenda.remarcar": { texto: "Horário remarcado pelo paciente", icone: "agenda", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
   "agenda.lembrete": { texto: "Lembrete enviado pelo WhatsApp", icone: "whatsapp", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
+  "patio.entrada": { texto: "Carro novo no pátio", icone: "carro", link: (id) => (id ? `patio?editar=${id}` : "patio") },
+  "patio.status": { texto: "Situação do carro mudou", icone: "carro", link: (id) => (id ? `patio?editar=${id}` : "patio") },
+  "patio.editar": { texto: "Carro atualizado", icone: "carro", link: (id) => (id ? `patio?editar=${id}` : "patio") },
+  "patio.venda": { texto: "Carro vendido", icone: "vendas", link: () => "patio?ver=vendido" },
   "cliente.criar": { texto: "Cliente cadastrado", icone: "pessoa", link: () => "clientes" },
 };
 
-const PREFIXOS = ["venda.", "despesa.", "estoque.", "agenda.", "cliente.criar", "conta.pagar", "parcela.pagar"];
+const PREFIXOS = ["venda.", "despesa.", "estoque.", "agenda.", "patio.", "cliente.criar", "conta.pagar", "parcela.pagar"];
 
 export async function atividadeRecente(db: BancoDeDados, empresaId: string, limite = 6): Promise<EventoOperacao[]> {
   const linhas = await db

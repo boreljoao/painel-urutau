@@ -1,8 +1,8 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { and, eq, inArray, like, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, like, lt, sql } from "drizzle-orm";
 import { obterDb } from "@/db";
-import { type Perfil, agendamentos, categoriasDespesa, clientes, despesas, empresaUsuarios, empresas, fontesReceita, usuarios, vendas } from "@/db/schema";
+import { type Perfil, agendamentos, categoriasDespesa, clientes, despesas, empresaUsuarios, empresas, fontesReceita, usuarios, veiculos, vendas } from "@/db/schema";
 import { DOMINIO_DEMO, HORAS_DEMO } from "@/lib/demo";
 import { diaDaSemana, diasNoMes, hoje, mesAtual, somarDias, somarMeses } from "@/lib/datas";
 import { hashSenha } from "@/lib/servidor/auth";
@@ -238,7 +238,7 @@ export async function criarDemo(perfil: Perfil): Promise<{ usuarioId: string; em
       });
     }
   }
-  if (novasVendas.length) await db.insert(vendas).values(novasVendas);
+  const vendasGravadas = novasVendas.length ? await db.insert(vendas).values(novasVendas).returning({ id: vendas.id, data: vendas.data, valor: vendas.valorCentavos, descricao: vendas.descricao, fonte: vendas.fonteReceitaId, clienteId: vendas.clienteId }) : [];
   if (novasDespesas.length) await db.insert(despesas).values(novasDespesas);
 
   const daAgenda = agendaDoPacote(perfil);
@@ -271,5 +271,78 @@ export async function criarDemo(perfil: Perfil): Promise<{ usuarioId: string; em
     }
     if (marcados.length) await db.insert(agendamentos).values(marcados);
   }
+  if (perfil === "revenda_veiculos") await montarPatioDemo(empresaId, u.id, fontes, vendasGravadas, hojeData);
   return { usuarioId: u.id, empresaId };
+}
+
+const CARROS_PATIO: [string, number, number, number][] = [
+  ["Onix LT 1.0 Turbo", 2021, 42_000, 69_900],
+  ["HB20 Comfort 1.0", 2020, 51_000, 62_900],
+  ["Corolla XEi 2.0", 2019, 68_000, 109_900],
+  ["Strada Freedom 1.3", 2022, 28_000, 99_900],
+  ["Compass Longitude 2.0", 2019, 74_000, 124_900],
+  ["Gol 1.6 MSI", 2018, 89_000, 47_900],
+  ["Kicks SV 1.6", 2021, 39_000, 96_900],
+  ["T-Cross 200 TSI", 2022, 31_000, 118_900],
+  ["Renegade Sport 1.8", 2018, 82_000, 76_900],
+];
+
+/** Revenda de exemplo: carros no pátio e os vendidos dos últimos dois meses, ligados às vendas. */
+async function montarPatioDemo(empresaId: string, usuarioId: string, fontes: { id: string; nome: string }[], gravadas: { id: string; data: string; valor: number; descricao: string; fonte: string; clienteId: string | null }[], hojeData: string) {
+  const db = obterDb();
+  const fonteCarro = fontes.find((f) => f.nome === "Venda de veículos")?.id;
+  const desde = somarDias(hojeData, -62);
+  const vendidos = gravadas.filter((v) => v.fonte === fonteCarro && v.data >= desde);
+  const status = ["disponivel", "disponivel", "reservado", "disponivel", "preparacao", "disponivel", "disponivel", "preparacao", "disponivel"] as const;
+  const letras = () => Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join("");
+  const placa = () => `${letras()}${Math.floor(Math.random() * 10)}${String.fromCharCode(65 + Math.floor(Math.random() * 10))}${String(Math.floor(Math.random() * 100)).padStart(2, "0")}`;
+  const linhas: (typeof veiculos.$inferInsert)[] = [
+    ...CARROS_PATIO.map(([modelo, ano, km, preco], i) => {
+      const custo = R(preco * entre(0.8, 0.86));
+      return {
+        empresaId,
+        modelo,
+        ano,
+        km,
+        placa: placa(),
+        status: status[i],
+        custoCompraCentavos: custo,
+        custoPreparacaoCentavos: R(entre(600, 2400)),
+        precoCentavos: R(preco),
+        // O Gol e o Renegade estão parados há mais de 60 dias.
+        entradaEm: somarDias(hojeData, i === 5 || i === 8 ? -Math.round(entre(64, 90)) : -Math.round(entre(2, 45))),
+        criadoPor: usuarioId,
+      };
+    }),
+    ...vendidos.map((v) => {
+      const dias = Math.round(entre(9, 55));
+      return {
+        empresaId,
+        modelo: v.descricao,
+        ano: 2017 + Math.floor(Math.random() * 5),
+        km: Math.round(entre(30_000, 90_000)),
+        placa: placa(),
+        status: "vendido" as const,
+        custoCompraCentavos: Math.round(v.valor * entre(0.78, 0.86)),
+        custoPreparacaoCentavos: R(entre(500, 2200)),
+        precoCentavos: Math.round(v.valor * 1.04),
+        valorVendaCentavos: v.valor,
+        entradaEm: somarDias(v.data, -dias),
+        vendidoEm: v.data,
+        vendaId: v.id,
+        clienteId: v.clienteId,
+        criadoPor: usuarioId,
+      };
+    }),
+  ];
+  const carros = await db.insert(veiculos).values(linhas).returning({ id: veiculos.id, status: veiculos.status });
+  // Os test drives e visitas que vêm pela frente ficam ligados a um carro do pátio.
+  const doPatio = carros.filter((c) => c.status !== "vendido");
+  if (doPatio.length) {
+    const ids = sql.raw(`array[${doPatio.map((c) => `'${c.id}'::uuid`).join(",")}]`);
+    await db
+      .update(agendamentos)
+      .set({ veiculoId: sql`(${ids})[1 + floor(random() * ${doPatio.length})::int]` })
+      .where(and(eq(agendamentos.empresaId, empresaId), gte(agendamentos.data, hojeData)));
+  }
 }

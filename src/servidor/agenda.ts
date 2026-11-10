@@ -1,8 +1,8 @@
 import "server-only";
-import { and, asc, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import { obterDb } from "@/db";
 import { agendamentos, clientes, fontesReceita } from "@/db/schema";
-import { type Data, hoje, intervaloDoMes, mesAtual } from "@/lib/datas";
+import { type Data, hoje, intervaloDoMes, mesAtual, somarDias } from "@/lib/datas";
 
 const colunas = {
   id: agendamentos.id,
@@ -98,4 +98,25 @@ export async function resumoDaAgenda(empresaId: string) {
       .where(and(eq(agendamentos.empresaId, empresaId), isNull(agendamentos.excluidoEm), eq(agendamentos.status, "faltou"), gte(agendamentos.data, mes.inicio), lt(agendamentos.data, mes.fim))),
   ]);
   return { hoje: doDia, faltasNoMes: faltas?.n ?? 0 };
+}
+
+/** Os próximos compromissos (de agora até `dias` à frente), para a Visão geral. */
+export async function proximosCompromissos(empresaId: string, dias = 7, limite = 6) {
+  const dia = hoje();
+  const linhas = await obterDb()
+    .select({ id: agendamentos.id, data: agendamentos.data, hora: agendamentos.hora, nome: agendamentos.nome, servico: agendamentos.servico, status: agendamentos.status, veiculoId: agendamentos.veiculoId })
+    .from(agendamentos)
+    .where(
+      and(
+        eq(agendamentos.empresaId, empresaId),
+        isNull(agendamentos.excluidoEm),
+        gte(agendamentos.data, dia),
+        lt(agendamentos.data, somarDias(dia, dias + 1)),
+        inArray(agendamentos.status, ["marcado", "confirmado"]),
+      ),
+    )
+    .orderBy(asc(agendamentos.data), asc(agendamentos.hora))
+    .limit(limite + 10);
+  const agora = new Date().toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false });
+  return linhas.filter((a) => a.data > dia || a.hora >= agora).slice(0, limite);
 }
