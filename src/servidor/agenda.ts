@@ -19,6 +19,9 @@ const colunas = {
   observacao: agendamentos.observacao,
   vendaId: agendamentos.vendaId,
   atualizadoEm: agendamentos.atualizadoEm,
+  origem: agendamentos.origem,
+  tokenPaciente: agendamentos.tokenPaciente,
+  lembretes: agendamentos.lembretes,
   telefone: clientes.telefone,
 };
 

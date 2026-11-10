@@ -3920,3 +3920,58 @@ ul.lista-escolha,
   .vg-numero, .vg-atalho, .agenda2-chip, .vg-pendencia { transition: none; }
 }
 .vg-numero { position: relative; }
+
+/* ---------- Agendamento online e página do paciente ---------- */
+.pub { display: grid; justify-items: center; gap: 16px; min-height: 100dvh; padding: 32px 16px; background: var(--fundo); }
+.pub-cartao { display: grid; gap: 18px; width: min(560px, 100%); padding: 24px; border-radius: 22px; background: var(--superficie); box-shadow: 0 18px 48px rgb(0 0 0 / 0.06); }
+.pub-topo { display: flex; align-items: center; gap: 12px; }
+.pub-topo .marca-sinal { width: 48px; height: 48px; border-radius: 14px; background: var(--cor); color: #fff; font-size: 22px; }
+.pub-topo h1 { margin: 0; font-size: 22px; }
+.pub-topo p { margin: 2px 0 0; color: var(--suave); }
+.pub-bloco { display: grid; gap: 10px; overflow: hidden; }
+.pub-bloco h2 { margin: 0; font-size: 15px; color: var(--suave); font-weight: 600; }
+.pub-opcoes, .pub-horas { display: flex; flex-wrap: wrap; gap: 8px; }
+.pub-opcoes button, .pub-horas button, .pub-dias button { border: 1px solid var(--linha); background: var(--superficie); color: var(--tinta); font: inherit; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, transform 160ms var(--ease); }
+.pub-opcoes button { padding: 10px 14px; border-radius: 12px; font-weight: 600; }
+.pub-horas button { min-width: 72px; padding: 10px 12px; border-radius: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pub-dias { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
+.pub-dias button { display: grid; justify-items: center; flex: none; min-width: 64px; padding: 8px 6px; border-radius: 14px; scroll-snap-align: start; }
+.pub-dias strong { font-size: 20px; }
+.pub-dias small { color: var(--suave); font-size: 12px; text-transform: capitalize; }
+.pub-opcoes button.ativo, .pub-horas button.ativo, .pub-dias button.ativo { border-color: var(--cor); background: var(--cor); color: #fff; }
+.pub-dias button.ativo small { color: rgb(255 255 255 / 0.8); }
+.pub-turno { display: grid; gap: 6px; }
+.pub-turno > small { color: var(--apagado); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.pub-dados { gap: 12px; }
+.pub-dados input { width: 100%; padding: 12px 14px; border: 1px solid var(--linha); border-radius: 12px; background: var(--tom); font: inherit; font-size: 16px; }
+.pub-isca { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.pub-confirmar { justify-content: center; width: 100%; min-height: 50px; font-size: 16px; }
+.pub-nota { margin: 0; color: var(--suave); font-size: 13px; text-align: center; }
+.pub-erro { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fdecea; color: var(--ruim); }
+.pub-vazio { margin: 0; padding: 16px; border-radius: 12px; background: var(--tom); color: var(--suave); text-align: center; }
+.pub-sucesso { margin: 0; padding: 14px; border-radius: 14px; background: #e6f5ec; color: #18794a; font-weight: 600; }
+.pub-horario { display: grid; gap: 4px; padding: 18px; border: 1px solid var(--linha); border-radius: 16px; }
+.pub-horario strong { font-size: 22px; text-transform: capitalize; }
+.pub-horario span { color: var(--suave); }
+.pub-status { justify-self: start; margin-bottom: 6px; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+.pub-status.alerta { background: #fff4e0; color: #b45309; }
+.pub-status.bom { background: #e6f5ec; color: #18794a; }
+.pub-status.ruim { background: #fdecea; color: var(--ruim); }
+.pub-acoes { display: grid; gap: 10px; }
+.pub-acoes .botao-pequeno { justify-content: center; min-height: 44px; }
+.pub-cancelar { justify-self: center; color: var(--ruim); }
+.pub-rodape { margin: 0; color: var(--apagado); font-size: 12px; }
+@media (hover: hover) and (pointer: fine) {
+  .pub-opcoes button:hover, .pub-horas button:hover, .pub-dias button:hover { border-color: var(--cor); transform: translateY(-1px); }
+}
+.agenda2-lembretes ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.agenda2-lembretes li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; overflow: hidden; border: 1px solid var(--linha); border-radius: 12px; }
+.agenda2-lembretes li > span { display: grid; flex: 1; min-width: 0; }
+.agenda2-lembretes small { color: var(--suave); }
+.agenda2-lembretes .botao-pequeno .ic { width: 16px; height: 16px; }
+.marcacao-online { margin-left: 6px; padding: 0 6px; border-radius: 6px; background: var(--cor); color: #fff; font-size: 10px; font-style: normal; font-weight: 700; vertical-align: 1px; }
+.config-online { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--linha); border-radius: 14px; }
+.config-online h3 { margin: 0; }
+.config-endereco { display: flex; align-items: center; gap: 4px; padding-left: 10px; border: 1px solid var(--linha); border-radius: 10px; background: var(--tom); }
+.config-endereco small { color: var(--suave); white-space: nowrap; }
+.config-endereco input { border: 0 !important; background: transparent !important; }

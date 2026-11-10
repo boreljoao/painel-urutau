@@ -13,7 +13,11 @@ export interface FormConfigPainel {
   /** Em reais, como a pessoa digitou ("400.000", "400000,00"); vazio tira a meta. */
   meta: string;
   menu: ItemMenuEmpresa[];
+  /** Página pública de agendamento (só para ramos com agenda). */
+  online?: { ligado: boolean; slug: string; antecedenciaHoras: number; diasOnline: number };
 }
+
+const SLUG = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 
 const paraCentavos = (texto: string) => {
   const limpo = texto.replace(/[^\d,]/g, "").replace(",", ".");
@@ -35,15 +39,34 @@ export async function salvarConfigPainel(empresaId: string, f: FormConfigPainel)
   const telaInicial = f.telaInicial === "inicio" || ids.has(f.telaInicial) ? f.telaInicial : null;
   const metaCentavos = paraCentavos(f.meta);
   if (Number.isNaN(metaCentavos)) return { erro: "Meta inválida. Use só números, como 50.000." };
+  let online = {};
+  if (f.online) {
+    const slug = f.online.slug.trim().toLowerCase();
+    if (slug && !SLUG.test(slug)) return { erro: "Endereço da página: use de 3 a 40 letras minúsculas, números e hífen, sem acento." };
+    if (f.online.ligado && !slug) return { erro: "Escolha o endereço da página de agendamento." };
+    online = {
+      agendaOnline: f.online.ligado,
+      slug: slug || null,
+      antecedenciaHoras: Math.min(Math.max(Math.round(f.online.antecedenciaHoras), 0), 72),
+      diasOnline: Math.min(Math.max(Math.round(f.online.diasOnline), 1), 60),
+    };
+  }
   const valores = {
     telaInicial,
     menu,
     especialidade: especialidadeValida(f.especialidade) ? f.especialidade : null,
     metaCentavos,
+    ...online,
     atualizadoEm: new Date(),
   };
   const db = obterDb();
-  await db.insert(empresaPainel).values({ empresaId, ...valores }).onConflictDoUpdate({ target: empresaPainel.empresaId, set: valores });
+  try {
+    await db.insert(empresaPainel).values({ empresaId, ...valores }).onConflictDoUpdate({ target: empresaPainel.empresaId, set: valores });
+  } catch (e) {
+    const codigo = (e as { cause?: { code?: string }; code?: string }).cause?.code ?? (e as { code?: string }).code;
+    if (codigo === "23505") return { erro: "Esse endereço já está em uso por outra empresa. Escolha outro." };
+    throw e;
+  }
   await registrarAuditoria(db, { empresaId, usuarioId: ctx.usuario.id, ator: "usuario", acao: "empresa.configurar_painel", entidade: "empresa", entidadeId: empresaId });
   revalidatePath(`/${empresaId}`, "layout");
   return { ok: "Painel salvo. O menu já mudou." };

@@ -27,6 +27,12 @@ import { Icone } from "@/componentes/Icone";
 import { endereco } from "@/componentes/Topo";
 import { AoVivo, LinhaAgora } from "@/componentes/AoVivo";
 import { pulsoDaEmpresa } from "../pulso";
+import { LembretesHoje, type ItemLembrete } from "@/pacotes/LembretesHoje";
+import { NOME_LEMBRETE, lembreteDevido, textoLembrete } from "@/pacotes/lembretes";
+import { urlPublica } from "@/servidor/instagram";
+import { eq as igual } from "drizzle-orm";
+import { obterDb } from "@/db";
+import { agentesWhatsapp } from "@/db/schema";
 import { reais } from "@/componentes/formato";
 import { BotaoAcao } from "@/componentes/vivos";
 
@@ -238,6 +244,32 @@ export default async function Agenda({
   const vivo = (a: LinhaAgenda) => `${a.id}:${new Date(a.atualizadoEm).getTime()}`;
   const fim = (a: LinhaAgenda) => horaDe(minutos(a.hora) + a.duracaoMin);
   const verLink = ver === "semana" ? undefined : ver;
+  // Lembretes vencidos: prontos para mandar pelo WhatsApp com o link de confirmação.
+  const agoraData = new Date();
+  // Com o WhatsApp oficial ligado, a fila do app manda sozinha; aqui ficam só os que a Meta recusou.
+  const [agenteWhats] = podeMarcar
+    ? await obterDb().select({ numero: agentesWhatsapp.phoneNumberId }).from(agentesWhatsapp).where(igual(agentesWhatsapp.empresaId, empresaId)).limit(1)
+    : [];
+  const automatico = !!agenteWhats?.numero;
+  const lembretes: ItemLembrete[] = podeMarcar
+    ? proximos
+        .filter((a) => a.telefone && (!automatico || !!(a.lembretes as Record<string, string>).erro))
+        .flatMap((a) => {
+          const tipo = lembreteDevido(a, agoraData);
+          if (!tipo) return [];
+          const texto = textoLembrete(tipo, {
+            nome: a.nome,
+            data: a.data,
+            hora: a.hora,
+            atendimento: a.servico || cfg.atendimento,
+            empresa: ctx.empresa.nome,
+            link: `${urlPublica()}/confirmar/${a.tokenPaciente}`,
+            hoje: hj,
+          });
+          return [{ id: a.id, nome: a.nome, quando: `${a.data === hj ? "hoje" : diaCurto(a.data)} ${a.hora}`, tipo, tipoNome: NOME_LEMBRETE[tipo], whatsapp: linkWhatsapp(a.telefone!, texto) }];
+        })
+        .slice(0, 12)
+    : [];
   // Concordância: "nova sessão", "próxima visita"; "novo atendimento", "próximo horário".
   const feminino = /(ão|a)$/.test(atend);
   const novo = feminino ? "Nova" : "Novo";
@@ -408,6 +440,7 @@ export default async function Agenda({
                           <>
                             <strong>
                               {a.hora} · {a.nome}
+                              {a.origem === "online" && <em className="marcacao-online">online</em>}
                             </strong>
                             {(a.servico || a.profissional) && <span className="marcacao-det">{[a.servico, a.profissional].filter(Boolean).join(" · ")}</span>}
                           </>
@@ -423,6 +456,7 @@ export default async function Agenda({
         </section>
 
         <aside className="agenda2-lado">
+          {podeMarcar && lembretes.length > 0 && <LembretesHoje empresaId={empresaId} itens={lembretes} automatico={automatico} />}
           <section className="cartao agenda2-proximo">
             <h2>
               {proximoRotulo} {atend}

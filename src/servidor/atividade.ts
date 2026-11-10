@@ -33,6 +33,10 @@ const TEXTO: Record<string, { texto: string; icone: NomeIcone; link?: (id: strin
   "agenda.marcar": { texto: "Horário marcado", icone: "agenda", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
   "agenda.status": { texto: "Agenda atualizada", icone: "agenda", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
   "agenda.receber": { texto: "Atendimento recebido", icone: "vendas", link: () => "agenda" },
+  "agenda.confirmado": { texto: "Horário confirmado", icone: "check", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
+  "agenda.cancelado": { texto: "Horário cancelado", icone: "alerta", link: () => "agenda" },
+  "agenda.remarcar": { texto: "Horário remarcado pelo paciente", icone: "agenda", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
+  "agenda.lembrete": { texto: "Lembrete enviado pelo WhatsApp", icone: "whatsapp", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
   "cliente.criar": { texto: "Cliente cadastrado", icone: "pessoa", link: () => "clientes" },
 };
 

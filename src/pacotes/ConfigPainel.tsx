@@ -24,6 +24,7 @@ export function ConfigPainel({
   especialidades,
   meta,
   ordemPadrao,
+  online,
 }: {
   empresaId: string;
   itens: ItemOpcao[];
@@ -32,12 +33,16 @@ export function ConfigPainel({
   especialidades: { id: string; nome: string }[] | null;
   meta: string;
   ordemPadrao: string[];
+  online?: { ligado: boolean; slug: string; antecedenciaHoras: number; diasOnline: number; base: string } | null;
 }) {
   const [lista, setLista] = useState(itens);
   const [inicio, setInicio] = useState(telaInicial);
   const [esp, setEsp] = useState(especialidade ?? "psicologia");
   const [valorMeta, setValorMeta] = useState(meta);
   const [msg, setMsg] = useState<{ ok?: string; erro?: string }>({});
+  const [ag, setAg] = useState(online ?? null);
+  const [copiado, setCopiado] = useState(false);
+  const linkAgenda = ag ? `${ag.base}/agendar/${ag.slug}` : "";
   const [pendente, iniciar] = useTransition();
   const mudar = (id: string, campo: Partial<ItemOpcao>) => setLista((l) => l.map((i) => (i.id === id ? { ...i, ...campo } : i)));
   const mover = (id: string, d: -1 | 1) =>
@@ -56,6 +61,7 @@ export function ConfigPainel({
         telaInicial: inicio,
         especialidade: especialidades ? esp : "",
         meta: valorMeta,
+        online: ag ? { ligado: ag.ligado, slug: ag.slug, antecedenciaHoras: ag.antecedenciaHoras, diasOnline: ag.diasOnline } : undefined,
         menu: lista.map((i) => ({ id: i.id, nome: i.nome !== i.nomePadrao ? i.nome : undefined, oculto: i.oculto || undefined })),
       };
       setMsg(await salvarConfigPainel(empresaId, dados));
@@ -95,6 +101,64 @@ export function ConfigPainel({
           <small className="nota">Aparece na Visão geral no lugar do ponto de equilíbrio.</small>
         </label>
       </div>
+
+      {ag && (
+        <div className="config-online" id="agendamento-online">
+          <h3>Agendamento online</h3>
+          <p className="nota">Um link para a bio do Instagram e o WhatsApp: o cliente vê só os horários livres e marca sozinho. O horário entra na agenda como “a confirmar”.</p>
+          <label className="campo-check largo">
+            <input type="checkbox" checked={ag.ligado} onChange={(e) => setAg({ ...ag, ligado: e.target.checked })} />
+            <span>Receber agendamentos pela página</span>
+          </label>
+          <div className="config-campos">
+            <label className="campo">
+              <span>Endereço da página</span>
+              <span className="config-endereco">
+                <small>{ag.base.replace(/^https?:\/\//, "")}/agendar/</small>
+                <input value={ag.slug} onChange={(e) => setAg({ ...ag, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} maxLength={40} />
+              </span>
+            </label>
+            <label className="campo">
+              <span>Antecedência mínima</span>
+              <select value={ag.antecedenciaHoras} onChange={(e) => setAg({ ...ag, antecedenciaHoras: Number(e.target.value) })}>
+                {[0, 1, 2, 4, 12, 24, 48].map((h) => (
+                  <option key={h} value={h}>
+                    {h === 0 ? "Sem antecedência" : `${h} ${h === 1 ? "hora" : "horas"} antes`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="campo">
+              <span>Mostrar horários até</span>
+              <select value={ag.diasOnline} onChange={(e) => setAg({ ...ag, diasOnline: Number(e.target.value) })}>
+                {[7, 14, 21, 30, 60].map((d) => (
+                  <option key={d} value={d}>
+                    {d} dias à frente
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {online?.ligado && online.slug && (
+            <div className="config-pe">
+              <a className="botao-pequeno" href={`${online.base}/agendar/${online.slug}`} target="_blank" rel="noreferrer">
+                Abrir a página
+              </a>
+              <button
+                type="button"
+                className="botao-pequeno"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(linkAgenda);
+                  setCopiado(true);
+                  setTimeout(() => setCopiado(false), 1500);
+                }}
+              >
+                {copiado ? "Link copiado" : "Copiar link"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <h3>Menu</h3>
       <p className="nota">Arraste para mudar a ordem, mude os nomes ou esconda o que a empresa não usa. Quem não tem permissão continua sem ver.</p>

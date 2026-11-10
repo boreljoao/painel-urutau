@@ -236,3 +236,15 @@ export async function receberAgendamento(empresaId: string, id: string, rotulo: 
   revalidar(empresaId);
   return { ok: "Recebimento lançado." };
 }
+
+/** O lembrete foi mandado pelo WhatsApp (a pessoa tocou em "Enviar" na lista Mandar hoje). */
+export async function marcarLembreteEnviado(empresaId: string, id: string, tipo: "marcado" | "h48" | "h2"): Promise<{ erro?: string } | void> {
+  await exigirPermissao(empresaId, "lancar");
+  if (!["marcado", "h48", "h2"].includes(tipo)) return { erro: "Lembrete inválido." };
+  const db = obterDb();
+  await db
+    .update(agendamentos)
+    .set({ lembretes: sql`${agendamentos.lembretes} || ${JSON.stringify({ [tipo]: new Date().toISOString() })}::jsonb`, atualizadoEm: new Date() })
+    .where(and(eq(agendamentos.id, id), eq(agendamentos.empresaId, empresaId)));
+  revalidar(empresaId);
+}
