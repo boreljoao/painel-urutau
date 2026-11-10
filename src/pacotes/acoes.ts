@@ -1,11 +1,12 @@
 "use server";
 
+import { especialidadeValida, itensDoRamo, rotaInicial } from "@/lib/navegacao";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { obterDb } from "@/db";
-import { type Perfil, auditoria, categoriasDespesa, empresas, fontesReceita } from "@/db/schema";
+import { type Perfil, auditoria, categoriasDespesa, empresaPainel, empresas, fontesReceita } from "@/db/schema";
 import type { EstadoForm } from "@/lib/estado-form";
 import { PERFIS } from "@/lib/perfis";
 import { criarPadrao } from "@/lib/servidor/atendimento";
@@ -128,4 +129,39 @@ export async function trocarPacote(empresaId: string, _: EstadoForm, fd: FormDat
   });
   revalidatePath(`/${empresaId}`, "layout");
   return { ok: `Pronto: agora o painel é de ${p.nome.toLowerCase()}.` };
+}
+
+export interface PedidoPainel {
+  nome: string;
+  perfil: Perfil;
+  especialidade: string | null;
+  regime: "mei" | "simples" | "presumido" | "nao_sei";
+  cidade: string;
+  uf: string;
+  /** "agenda" ou "inicio" (Visão geral). */
+  telaInicial: string;
+  /** Itens do menu que a pessoa desligou na prévia. */
+  ocultos: string[];
+}
+
+/** Cadastro com prévia: cria a empresa do ramo e já grava a tela inicial, a especialidade e o menu escolhidos. */
+export async function criarPainel(p: PedidoPainel): Promise<{ erro?: string; destino?: string }> {
+  const usuario = await exigirUsuario();
+  const r = esquemaCriar.safeParse({ nome: p.nome, perfil: p.perfil, regime: p.regime, cidade: p.cidade || undefined, uf: p.uf || undefined });
+  if (!r.success) return { erro: r.error.issues[0]?.message ?? "Confira os dados." };
+  const { nome, perfil, regime, cidade, uf } = r.data;
+  if (uf && !(UFS as readonly string[]).includes(uf)) return { erro: "UF inválida." };
+  const criada = await montarEmpresa(usuario.id, { nome, perfil, regime, cidade, uf });
+  if ("erro" in criada) return { erro: criada.erro };
+  const ramo = itensDoRamo({ perfil, papel: "dono", modulos: new Set(PERFIS[perfil].modulos) });
+  const ids = new Set(ramo.map((i) => i.id));
+  const telaInicial = p.telaInicial === "inicio" || ids.has(p.telaInicial) ? p.telaInicial : null;
+  const ocultos = new Set(p.ocultos.filter((id) => ids.has(id) && id !== telaInicial));
+  // Os escondidos por padrão continuam escondidos (a não ser a tela inicial escolhida).
+  const menu = ocultos.size ? ramo.map((i) => ({ id: i.id, ...(ocultos.has(i.id) || (i.ocultoPadrao && i.id !== telaInicial) ? { oculto: true } : {}) })) : null;
+  await obterDb()
+    .insert(empresaPainel)
+    .values({ empresaId: criada.id, telaInicial, menu, especialidade: especialidadeValida(p.especialidade) ? p.especialidade : null })
+    .onConflictDoNothing();
+  return { destino: rotaInicial(criada.id, "dono", perfil, { telaInicial, menu }) };
 }

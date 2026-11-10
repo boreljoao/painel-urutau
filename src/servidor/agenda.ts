@@ -20,8 +20,11 @@ const colunas = {
   vendaId: agendamentos.vendaId,
   atualizadoEm: agendamentos.atualizadoEm,
   origem: agendamentos.origem,
+  online: agendamentos.online,
+  serieId: agendamentos.serieId,
   tokenPaciente: agendamentos.tokenPaciente,
   lembretes: agendamentos.lembretes,
+  respondidoEm: agendamentos.respondidoEm,
   telefone: clientes.telefone,
 };
 

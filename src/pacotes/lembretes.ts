@@ -65,3 +65,14 @@ export function textoLembrete(
   if (tipo === "h48") return `Oi, ${primeiro}! ${o.empresa} aqui. ${Seu} ${oque} está ${marcado} para ${quando}. Confirma pra gente? É só tocar: ${o.link}`;
   return `Oi, ${primeiro}! ${Seu} ${oque} ficou ${marcado} para ${quando} (${o.empresa}). Para confirmar, remarcar ou cancelar: ${o.link}`;
 }
+
+/**
+ * Numa série semanal, só a primeira sessão que ainda vai acontecer manda o aviso "ao marcar"; as
+ * outras recebem só os de 48h e 2h. Sem isso, marcar 12 semanas mandaria 12 mensagens de uma vez.
+ */
+export function semAvisoRepetido<T extends { id: string; data: Data; hora: string; serieId: string | null }>(itens: T[]) {
+  const primeiro = new Map<string, T>();
+  for (const a of [...itens].sort((x, y) => `${x.data} ${x.hora}`.localeCompare(`${y.data} ${y.hora}`)))
+    if (a.serieId && !primeiro.has(a.serieId)) primeiro.set(a.serieId, a);
+  return (a: T, tipo: TipoLembrete | null) => (tipo === "marcado" && a.serieId && primeiro.get(a.serieId)?.id !== a.id ? null : tipo);
+}

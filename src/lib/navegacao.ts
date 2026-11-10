@@ -24,6 +24,8 @@ export interface ItemNav {
   naBarra?: boolean;
   foraDaBarra?: boolean;
   doNegocio?: boolean;
+  /** Fica fora do menu até a empresa ligar em Seu pacote (no consultório: Visão geral, Recebimentos…). */
+  ocultoPadrao?: boolean;
 }
 
 /** Ramos que trabalham com hora marcada abrem na agenda. */
@@ -73,14 +75,23 @@ export function itensDoRamo({ perfil, papel, modulos }: Omit<Entrada, "config">)
     podeVer("ver_painel") && { id: "impostos", rota: "financeiro#impostos", nome: "Impostos", icone: "documento", secao: "gestao", doNegocio: true },
     podeVer("lancar") && { id: "instagram", rota: "instagram", nome: "Instagram", icone: "instagram", secao: "divulgacao", doNegocio: true },
   ];
-  return itens.filter((i): i is ItemNav => !!i);
+  const lista = itens.filter((i): i is ItemNav => !!i);
+  if (perfil !== "consultorio") return lista;
+  // Consultório: a rotina gira em torno da agenda. Menu enxuto, como a psicóloga usa no dia a dia.
+  const ordem = ["agenda", "clientes", "confirmacoes", "financeiro", "whatsapp", "inicio", "vendas", "pacotes", "impostos", "instagram"];
+  const escondidos = new Set(["inicio", "vendas", "pacotes", "impostos"]);
+  const confirmacoes: ItemNav | null = podeVer("ver_clientes") && temAgenda ? { id: "confirmacoes", rota: "confirmacoes", nome: "Confirmações", icone: "check", secao: "operacao" } : null;
+  return [...lista, ...(confirmacoes ? [confirmacoes] : [])]
+    .map((i) => ({ ...i, ocultoPadrao: escondidos.has(i.id), secao: i.id === "financeiro" ? ("operacao" as const) : i.secao, foraDaBarra: i.id === "financeiro" ? false : i.foraDaBarra }))
+    .sort((a, b) => (ordem.indexOf(a.id) + 1 || 99) - (ordem.indexOf(b.id) + 1 || 99));
 }
 
 /** O menu final: a ordem, os nomes e os escondidos da empresa aplicados sobre o do ramo. */
 export function montarMenu(e: Entrada): ItemNav[] {
   const ramo = itensDoRamo(e);
   const escolhas = e.config?.menu ?? [];
-  if (!escolhas.length) return ramo;
+  const inicial = e.config?.telaInicial ?? null;
+  if (!escolhas.length) return ramo.filter((i) => !i.ocultoPadrao || i.id === inicial);
   const porId = new Map(ramo.map((i) => [i.id, i]));
   const vistos = new Set<string>();
   const ordenados: ItemNav[] = [];
@@ -91,8 +102,8 @@ export function montarMenu(e: Entrada): ItemNav[] {
     if (c.oculto) continue;
     ordenados.push({ ...item, nome: c.nome?.trim() || item.nome });
   }
-  // Itens novos (um módulo ligado depois) entram no fim da seção deles.
-  for (const item of ramo) if (!vistos.has(item.id)) ordenados.push(item);
+  // Itens novos (um módulo ligado depois) entram no fim da seção deles, a não ser os escondidos por padrão.
+  for (const item of ramo) if (!vistos.has(item.id) && (!item.ocultoPadrao || item.id === inicial)) ordenados.push(item);
   return ordenados;
 }
 

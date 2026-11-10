@@ -119,6 +119,8 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
   }
 
   const clienteId = bloquear ? null : await resolverCliente(empresaId, ctx.usuario.id, d);
+  const online = !bloquear && valores.online === "1";
+  const repetir = !id && !bloquear ? Math.min(Math.max(Number(valores.repetir) || 1, 1), 52) : 1;
   const dados = {
     data: d.data,
     hora: d.hora,
@@ -130,10 +132,34 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
     sala: d.sala,
     valorCentavos: d.valor,
     observacao: d.observacao,
+    online,
   };
   const db = obterDb();
   if (id) {
     await db.update(agendamentos).set({ ...dados, atualizadoEm: new Date() }).where(and(eq(agendamentos.id, id), eq(agendamentos.empresaId, empresaId)));
+  } else if (repetir > 1) {
+    // Sessão recorrente: a mesma hora toda semana. Semana que bate com outro horário do mesmo
+    // profissional (ou com um bloqueio) fica de fora e a pessoa é avisada.
+    const serieId = crypto.randomUUID();
+    const datas = Array.from({ length: repetir }, (_, k) => somarDias(d.data, 7 * k));
+    const ocupados = await listarAgenda(empresaId, datas[0], somarDias(datas.at(-1)!, 1));
+    const puladas: string[] = [];
+    const linhas = datas.flatMap((data) => {
+      const bate = choques({ data, hora: d.hora, duracaoMin: d.duracao, profissional: d.profissional, sala: d.sala }, ocupados);
+      if (bate.length) {
+        puladas.push(`${data.slice(8)}/${data.slice(5, 7)}`);
+        return [];
+      }
+      return [{ ...dados, data, serieId, empresaId, criadoPor: ctx.usuario.id }];
+    });
+    if (!linhas.length) return { erros: { _: "Todas as semanas batem com outros horários. Escolha outra hora." }, valores };
+    await db.insert(agendamentos).values(linhas);
+    await registrarAuditoria(db, { empresaId, usuarioId: ctx.usuario.id, ator: "usuario", acao: "agenda.marcar", entidade: "agendamento", dados: { serie: serieId, semanas: linhas.length } });
+    revalidar(empresaId);
+    return {
+      ok: `Série marcada: ${linhas.length} semanas${puladas.length ? ` (ficaram de fora ${puladas.join(", ")}, que já tinham horário)` : ""}.`,
+      valores: { data: d.data },
+    };
   } else {
     const [novo] = await db
       .insert(agendamentos)

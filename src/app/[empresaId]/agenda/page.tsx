@@ -28,7 +28,7 @@ import { endereco } from "@/componentes/Topo";
 import { AoVivo, LinhaAgora } from "@/componentes/AoVivo";
 import { pulsoDaEmpresa } from "../pulso";
 import { LembretesHoje, type ItemLembrete } from "@/pacotes/LembretesHoje";
-import { NOME_LEMBRETE, lembreteDevido, textoLembrete } from "@/pacotes/lembretes";
+import { NOME_LEMBRETE, lembreteDevido, semAvisoRepetido, textoLembrete } from "@/pacotes/lembretes";
 import { urlPublica } from "@/servidor/instagram";
 import { eq as igual } from "drizzle-orm";
 import { obterDb } from "@/db";
@@ -153,6 +153,7 @@ export default async function Agenda({
             sala: a.sala,
             valor: a.valorCentavos ? (a.valorCentavos / 100).toFixed(2).replace(".", ",") : "",
             observacao: a.observacao,
+            online: a.online ? "1" : "",
           }}
           clientes={opcoes.clientes}
           servicos={[...new Set([...opcoes.servicos, ...cfg.servicos])]}
@@ -233,7 +234,7 @@ export default async function Agenda({
   const proximoGeral = proximos.find(
     (a) => ocupa(a.status) && a.status !== "bloqueado" && a.status !== "atendido" && a.status !== "faltou" && (a.data > hj || minutos(a.hora) + a.duracaoMin > agora),
   );
-  const titulo = ctx.empresa.perfil === "consultorio" ? "Agenda de atendimentos" : aba.titulo;
+  const titulo = ctx.empresa.perfil === "consultorio" ? `Agenda de ${atendPlural}` : aba.titulo;
   const nomeHoje = nomeDoDia(hj);
   const subtitulo = `${nomeHoje.charAt(0).toUpperCase()}${nomeHoje.slice(1)}${nomeHoje === "sábado" || nomeHoje === "domingo" ? "" : "-feira"}, ${diaMes(hj)} de ${hj.slice(0, 4)}`;
   const diasGrade = ver === "dia" ? [dia] : dias;
@@ -251,11 +252,12 @@ export default async function Agenda({
     ? await obterDb().select({ numero: agentesWhatsapp.phoneNumberId }).from(agentesWhatsapp).where(igual(agentesWhatsapp.empresaId, empresaId)).limit(1)
     : [];
   const automatico = !!agenteWhats?.numero;
+  const filtrarSerie = semAvisoRepetido(proximos.filter((a) => a.data >= hj));
   const lembretes: ItemLembrete[] = podeMarcar
     ? proximos
         .filter((a) => a.telefone && (!automatico || !!(a.lembretes as Record<string, string>).erro))
         .flatMap((a) => {
-          const tipo = lembreteDevido(a, agoraData);
+          const tipo = filtrarSerie(a, lembreteDevido(a, agoraData));
           if (!tipo) return [];
           const texto = textoLembrete(tipo, {
             nome: a.nome,
@@ -420,7 +422,7 @@ export default async function Agenda({
                         data-vivo={vivo(a)}
                         href={podeMarcar ? link({ dia: d, editar: a.id, ver: verLink }) : link({ dia: d, ver: "dia" })}
                         scroll={false}
-                        className={`marcacao situacao-${a.status} ${a.duracaoMin < 40 ? "curta" : ""} ${a.id === proximoGeral?.id ? "proximo" : ""}`}
+                        className={`marcacao situacao-${a.status} ${a.serieId && a.status !== "bloqueado" ? "recorrente" : ""} ${a.duracaoMin < 40 ? "curta" : ""} ${a.id === proximoGeral?.id ? "proximo" : ""}`}
                         style={{
                           top: `${(minutos(a.hora) - faixa.inicio * 60) * pxMin}px`,
                           height: `${Math.max(a.duracaoMin * pxMin, 22)}px`,
@@ -442,7 +444,9 @@ export default async function Agenda({
                               {a.hora} · {a.nome}
                               {a.origem === "online" && <em className="marcacao-online">online</em>}
                             </strong>
-                            {(a.servico || a.profissional) && <span className="marcacao-det">{[a.servico, a.profissional].filter(Boolean).join(" · ")}</span>}
+                            <span className="marcacao-det">
+                              {[a.serieId ? `${a.servico || cfg.atendimento} recorrente` : a.servico, a.online ? "Online" : "", a.profissional].filter(Boolean).join(" · ") || `${a.duracaoMin} min`}
+                            </span>
                           </>
                         )}
                       </Link>

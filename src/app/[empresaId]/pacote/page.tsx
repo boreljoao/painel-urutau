@@ -20,7 +20,7 @@ export default async function SeuPacote({ params }: { params: Promise<{ empresaI
   const itens = ramo
     .map((i, n) => {
       const c = escolhas.get(i.id);
-      return { id: i.id, nomePadrao: i.nome, icone: i.icone, secao: NOME_SECAO[i.secao], nome: c?.nome ?? i.nome, oculto: !!c?.oculto, emBreve: i.emBreve, ordem: c ? c.ordem : 1000 + n };
+      return { id: i.id, nomePadrao: i.nome, icone: i.icone, secao: NOME_SECAO[i.secao], nome: c?.nome ?? i.nome, oculto: c ? !!c.oculto : !!i.ocultoPadrao, emBreve: i.emBreve, ordem: c ? c.ordem : 1000 + n };
     })
     .sort((a, b) => a.ordem - b.ordem)
     .map(({ ordem: _, ...i }) => i);

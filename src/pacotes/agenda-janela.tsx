@@ -154,6 +154,24 @@ function FormAgendamento(o: Opcoes & { salvo: (t: string, v?: Record<string, str
           ))}
         </datalist>
       </Campo>
+      {!bloquear && (
+        <label className="campo-check largo">
+          <input type="checkbox" name="online" value="1" defaultChecked={v.online === "1"} />
+          <span>Sessão online (vídeo ou telefone)</span>
+        </label>
+      )}
+      {!o.edicao && !bloquear && (
+        <label className="campo-form largo">
+          <span>Repetir</span>
+          <select name="repetir" defaultValue={v.repetir ?? "1"}>
+            <option value="1">Só desta vez</option>
+            <option value="4">Toda semana, por 4 semanas</option>
+            <option value="8">Toda semana, por 8 semanas</option>
+            <option value="12">Toda semana, por 12 semanas</option>
+            <option value="24">Toda semana, por 24 semanas</option>
+          </select>
+        </label>
+      )}
       <Campo rotulo="Valor (R$, opcional)" erro={erros.valor}>
         <input name="valor" inputMode="decimal" placeholder="0,00" defaultValue={v.valor} />
       </Campo>
