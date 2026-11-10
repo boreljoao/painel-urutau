@@ -20,6 +20,7 @@ import { Minigrafico } from "@/componentes/Minigrafico";
 import { haQuanto, porcento, reais, reaisCurto } from "@/componentes/formato";
 import { Contador, Entrada, GraficoMeses, Medidor } from "@/componentes/vivos";
 import { pulsoDaEmpresa } from "./pulso";
+import { VisaoLoja } from "./VisaoLoja";
 import { VisaoRevenda } from "./VisaoRevenda";
 
 export const metadata = { title: "Visão geral" };
@@ -268,6 +269,8 @@ export default async function VisaoGeral({
             };
 
   const revenda = empresa.perfil === "revenda_veiculos";
+  // A loja abre na operação do dia (só no mês atual; meses passados ficam com o resumo de sempre).
+  const loja = empresa.perfil === "varejo" && ehAtual;
   const blocoGrafico = (
     <section className="cartao vg-grafico">
       {temHistorico ? (
@@ -342,7 +345,7 @@ export default async function VisaoGeral({
     <div className="vg">
       <header className="vg-topo">
         <div>
-          <h1>Visão geral</h1>
+          <h1>{loja ? "Operação da loja" : "Visão geral"}</h1>
           <p>
             {empresa.nome}
             {empresa.cidade ? ` · ${empresa.cidade}` : ""}
@@ -425,6 +428,16 @@ export default async function VisaoGeral({
           </section>
         )}
 
+        {!vazia && loja && (
+          <VisaoLoja
+            empresaId={empresaId}
+            metaMes={meta}
+            vencimentos={vencimentos}
+            atividade={blocoAtividade}
+            grafico={blocoGrafico}
+            podeVender={pode(papel, "lancar")}
+          />
+        )}
         {!vazia && revenda && (
           <VisaoRevenda
             empresaId={empresaId}
@@ -433,7 +446,7 @@ export default async function VisaoGeral({
             grafico={blocoGrafico}
           />
         )}
-        {!vazia && !revenda && (
+        {!vazia && !revenda && !loja && (
           <>
             <Link
               href={`${base}/vendas${ehAtual ? "" : `?mes=${mes}`}`}

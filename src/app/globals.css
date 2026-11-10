@@ -4157,3 +4157,101 @@ ul.lista-escolha,
 .agenda2-vendas-total { display: flex; justify-content: space-between; margin: 0; padding-top: 10px; border-top: 1px solid var(--linha); color: var(--suave); }
 .agenda2-vendas-total .bom { color: var(--bom); }
 @media (hover: hover) and (pointer: fine) { .agenda2-vendas a:hover { background: var(--tom); } }
+
+/* ─── Caixa (PDV) ──────────────────────────────────────────────────────── */
+.caixa .topo-acoes, .estoque .topo-acoes { display: flex; align-items: center; gap: 10px; }
+.caixa-grade { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; margin-top: 16px; align-items: start; }
+.pdv { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 1fr); gap: 16px; }
+.pdv.compacto { grid-template-columns: minmax(0, 1fr) minmax(240px, 0.9fr); }
+.pdv-busca { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.pdv-campo { display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 2px solid var(--cor); border-radius: 12px; background: var(--superficie); }
+.pdv-campo .ic { width: 20px; height: 20px; color: var(--cor); }
+.pdv-campo input { flex: 1; min-width: 0; padding: 14px 0; border: 0; outline: 0; background: transparent; font-size: 17px; }
+.pdv-resultados { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.pdv.compacto .pdv-resultados { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.pdv-resultados button { display: grid; gap: 2px; width: 100%; height: 100%; padding: 10px 12px; border: 1px solid var(--linha); border-radius: 12px; background: var(--superficie); color: var(--tinta); text-align: left; cursor: pointer; transition: transform 140ms var(--ease), border-color 140ms var(--ease); }
+.pdv-resultados button:active { transform: scale(0.97); }
+.pdv-resultados strong { font-size: 14px; line-height: 1.25; }
+.pdv-resultados span { color: var(--cor); font-weight: 800; font-variant-numeric: tabular-nums; }
+.pdv-resultados small { color: var(--suave); font-size: 12px; }
+.pdv-resultados button.acabou { border-style: dashed; opacity: 0.7; }
+.pdv-resultados button.acabou small { color: var(--ruim); }
+.pdv-carrinho { display: grid; gap: 10px; align-content: start; padding: 14px; border-radius: 14px; background: var(--tom); }
+.pdv-carrinho header { display: flex; align-items: center; justify-content: space-between; }
+.pdv-carrinho h3 { margin: 0; font-size: 15px; }
+.pdv-carrinho ul { display: grid; gap: 6px; max-height: 320px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.pdv-carrinho li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--superficie); }
+.pdv-carrinho li.vazio { display: block; background: transparent; color: var(--suave); text-align: center; }
+.pdv-item { display: grid; min-width: 0; }
+.pdv-item strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.pdv-item small { color: var(--suave); font-variant-numeric: tabular-nums; }
+.pdv-qtd { display: flex; gap: 4px; }
+.pdv-qtd button { width: 28px; height: 28px; border: 1px solid var(--linha); border-radius: 8px; background: var(--superficie); font-size: 16px; line-height: 1; cursor: pointer; }
+.pdv-carrinho li > b { font-variant-numeric: tabular-nums; }
+.pdv-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pdv-linha span { color: var(--suave); font-size: 13px; }
+.pdv-linha input, .pdv-linha select { flex: 1; min-width: 120px; padding: 8px 10px; border: 1px solid var(--linha); border-radius: 10px; background: var(--superficie); }
+.pdv-troco { color: var(--bom); }
+.pdv-formas { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.pdv-formas button { padding: 8px 4px; border: 1px solid var(--linha); border-radius: 10px; background: var(--superficie); font-weight: 600; font-size: 13px; cursor: pointer; }
+.pdv-formas button[aria-pressed="true"] { border-color: var(--cor); background: var(--cor); color: #fff; }
+.pdv-total { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pdv-total span { color: var(--suave); font-size: 13px; }
+.pdv-total strong { font-size: 26px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.pdv-fechar { width: 100%; min-height: 48px; font-size: 16px; }
+.pdv-aviso { margin: 0; padding: 10px 12px; border-radius: 10px; font-weight: 600; }
+.pdv-aviso.ok { background: #e6f5ec; color: #18794a; }
+.pdv-aviso.erro { background: #fdecea; color: var(--ruim); }
+.caixa-dia { display: grid; gap: 12px; }
+.caixa-dia h2, .caixa-dia h3 { margin: 0; }
+.caixa-dia h3 { font-size: 14px; color: var(--suave); }
+.caixa-dia-total { display: grid; }
+.caixa-dia-total strong { font-size: 30px; letter-spacing: -0.02em; }
+.caixa-dia-total span { color: var(--suave); }
+.caixa-formas { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.caixa-formas li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--linha); }
+.caixa-vendas { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.caixa-vendas li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--linha); border-radius: 10px; }
+.caixa-vendas li > span { display: grid; }
+.caixa-vendas small { color: var(--suave); }
+@media (max-width: 1100px) { .caixa-grade { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .pdv, .pdv.compacto { grid-template-columns: 1fr; } }
+
+/* ─── Estoque ──────────────────────────────────────────────────────────── */
+.estoque-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.estoque-busca { display: flex; align-items: center; gap: 8px; min-width: 260px; padding: 0 12px; border: 1px solid var(--linha); border-radius: 12px; background: var(--superficie); }
+.estoque-busca .ic { width: 18px; height: 18px; color: var(--suave); }
+.estoque-busca input { flex: 1; padding: 10px 0; border: 0; outline: 0; background: transparent; }
+.estoque-tabela td small { display: block; color: var(--suave); }
+.estoque-tabela td a { color: var(--tinta); }
+.pilula.sit-ok { background: #e6f5ec; color: #18794a; }
+.pilula.sit-abaixo_minimo { background: #fff4e0; color: #b45309; }
+.pilula.sit-sem_estoque, .pilula.sit-negativo { background: #fdecea; color: var(--ruim); }
+.pilula.sit-sem_controle { background: var(--tom-2); color: var(--suave); }
+
+/* ─── Operação da loja ─────────────────────────────────────────────────── */
+.vg-numero.vg-alerta { border-color: #f6dfb4; background: #fffaf0; }
+.loja-caixa { grid-column: span 8; }
+.loja-repor { grid-column: span 4; }
+.loja-ultimas { grid-column: span 6; }
+.loja-contas { grid-column: span 3; }
+.loja-repor ul, .loja-ultimas ul, .loja-contas ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.loja-repor a, .loja-contas a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid var(--linha); border-radius: 10px; color: var(--tinta); }
+.loja-repor a > span, .loja-contas a > span, .loja-ultimas li > span:nth-child(2) { display: grid; min-width: 0; }
+.loja-repor small, .loja-contas small, .loja-ultimas small { color: var(--suave); }
+.loja-repor b { color: #b45309; font-size: 13px; white-space: nowrap; }
+.loja-contas li.atrasado a { border-color: #f5c6c0; background: #fff6f5; }
+.loja-contas li.atrasado small { color: var(--ruim); }
+.loja-contas b, .loja-ultimas b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.loja-total { font-weight: 800; font-variant-numeric: tabular-nums; }
+.loja-total.ruim { color: var(--ruim); }
+.loja-total.bom { color: var(--bom); }
+.loja-ultimas li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--linha); }
+.loja-ultimas li:last-child { border-bottom: 0; }
+.loja-quando { padding: 4px 6px; border-radius: 8px; background: var(--tom-2); font-size: 12px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+@media (hover: hover) and (pointer: fine) {
+  .pdv-resultados button:hover { border-color: var(--cor); }
+  .loja-repor a:hover, .loja-contas a:hover { background: var(--tom); }
+}
+@media (max-width: 1180px) { .loja-caixa, .loja-repor, .loja-ultimas { grid-column: 1 / -1; } .loja-contas { grid-column: span 6; } }
+@media (max-width: 600px) { .loja-contas { grid-column: 1 / -1; } }

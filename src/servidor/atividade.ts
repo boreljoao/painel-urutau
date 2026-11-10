@@ -21,15 +21,16 @@ export interface EventoOperacao {
 
 const TEXTO: Record<string, { texto: string; icone: NomeIcone; link?: (id: string | null) => string | null }> = {
   "venda.registrar": { texto: "Venda registrada", icone: "carrinho", link: (id) => (id ? `vendas?editar=${id}` : "vendas") },
-  "venda.pdv": { texto: "Venda registrada no PDV", icone: "carrinho", link: () => "vendas" },
+  "venda.pdv": { texto: "Venda no caixa", icone: "carrinho", link: () => "caixa" },
   "venda.conferir": { texto: "Venda conferida", icone: "check", link: () => "vendas" },
   "venda.receber": { texto: "Recebimento confirmado", icone: "vendas", link: () => "vendas" },
   "venda.estornar": { texto: "Venda estornada", icone: "alerta", link: () => "vendas" },
   "despesa.registrar": { texto: "Despesa lançada", icone: "financeiro", link: () => "financeiro" },
   "despesa.pagar": { texto: "Boleto pago", icone: "documento", link: () => "financeiro" },
   "despesa.marcar_pago": { texto: "Boleto pago", icone: "documento", link: () => "financeiro" },
-  "estoque.entrada": { texto: "Estoque atualizado", icone: "caixa", link: () => null },
-  "estoque.ajuste": { texto: "Estoque atualizado", icone: "caixa", link: () => null },
+  "estoque.entrada": { texto: "Mercadoria chegou", icone: "caixa", link: () => "estoque" },
+  "estoque.ajuste": { texto: "Estoque atualizado", icone: "caixa", link: () => "estoque" },
+  "caixa.cancelar_venda": { texto: "Venda do caixa estornada", icone: "alerta", link: () => "caixa" },
   "agenda.marcar": { texto: "Horário marcado", icone: "agenda", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
   "agenda.status": { texto: "Agenda atualizada", icone: "agenda", link: (id) => (id ? `agenda?editar=${id}` : "agenda") },
   "agenda.receber": { texto: "Atendimento recebido", icone: "vendas", link: () => "agenda" },
@@ -44,7 +45,7 @@ const TEXTO: Record<string, { texto: string; icone: NomeIcone; link?: (id: strin
   "cliente.criar": { texto: "Cliente cadastrado", icone: "pessoa", link: () => "clientes" },
 };
 
-const PREFIXOS = ["venda.", "despesa.", "estoque.", "agenda.", "patio.", "cliente.criar", "conta.pagar", "parcela.pagar"];
+const PREFIXOS = ["venda.", "despesa.", "estoque.", "agenda.", "patio.", "caixa.", "cliente.criar", "conta.pagar", "parcela.pagar"];
 
 export async function atividadeRecente(db: BancoDeDados, empresaId: string, limite = 6): Promise<EventoOperacao[]> {
   const linhas = await db

@@ -22,5 +22,7 @@ export async function abrirDemo(perfil: Perfil) {
   // No começo do mês os números ainda são poucos: o exemplo abre no último mês fechado.
   // Consultório abre na agenda; os outros ramos, na Visão geral.
   if (perfil === "consultorio") redirect(`/${empresaId}/agenda`);
+  // A loja abre na operação do dia (vendas de hoje, caixa, estoque).
+  if (perfil === "varejo") redirect(`/${empresaId}`);
   redirect(Number(hoje().slice(8)) < 15 ? `/${empresaId}?mes=${somarMeses(mesAtual(), -1)}` : `/${empresaId}`);
 }

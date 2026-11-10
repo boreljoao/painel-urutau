@@ -118,6 +118,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
         titulo: "Estoque",
         desc: "Produtos, entradas e baixas",
         icone: "caixa",
+        rota: "estoque",
         vaiTer: ["Produtos com código de barras", "Entrada de mercadoria e baixa na venda", "Aviso de estoque baixo", "Curva ABC: o que mais vende"],
       },
       {
@@ -125,6 +126,7 @@ export const PACOTES: Record<Perfil, Pacote> = {
         titulo: "Caixa",
         desc: "Venda no balcão em segundos",
         icone: "vendas",
+        rota: "caixa",
         vaiTer: ["Leitor de código de barras ou câmera do celular", "Pix, débito, crédito, dinheiro com troco e fiado", "Comprovante pelo WhatsApp", "Fechamento do caixa do dia"],
       },
     ],

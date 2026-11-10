@@ -2,11 +2,12 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, eq, gte, inArray, like, lt, sql } from "drizzle-orm";
 import { obterDb } from "@/db";
-import { type Perfil, agendamentos, categoriasDespesa, clientes, despesas, empresaUsuarios, empresas, fontesReceita, usuarios, veiculos, vendas } from "@/db/schema";
+import { type Perfil, agendamentos, categoriasDespesa, clientes, despesas, empresaPainel, empresaUsuarios, empresas, fontesReceita, usuarios, veiculos, vendas } from "@/db/schema";
 import { DOMINIO_DEMO, HORAS_DEMO } from "@/lib/demo";
 import { diaDaSemana, diasNoMes, hoje, mesAtual, somarDias, somarMeses } from "@/lib/datas";
 import { hashSenha } from "@/lib/servidor/auth";
 import { agendaDoPacote } from "@/pacotes/catalogo";
+import { registrarVendaCaixa, salvarProduto } from "@/lib/servidor/estoque";
 import { montarEmpresa } from "./empresa-nova";
 
 type Forma = "pix" | "credito" | "debito" | "dinheiro" | "boleto" | "transferencia";
@@ -271,8 +272,61 @@ export async function criarDemo(perfil: Perfil): Promise<{ usuarioId: string; em
     }
     if (marcados.length) await db.insert(agendamentos).values(marcados);
   }
+  if (perfil === "varejo") await montarEstoqueDemo(empresaId, u.id);
   if (perfil === "revenda_veiculos") await montarPatioDemo(empresaId, u.id, fontes, vendasGravadas, hojeData);
   return { usuarioId: u.id, empresaId };
+}
+
+// Nome, categoria, preço, custo, saldo, mínimo. Alguns acabando, um zerado: o "Estoque crítico" tem o que mostrar.
+const PRODUTOS_LOJA: [string, string, number, number, number, number][] = [
+  ["Camiseta básica branca M", "Camisetas", 49.9, 18, 24, 6],
+  ["Camiseta básica preta G", "Camisetas", 49.9, 18, 3, 6],
+  ["Calça jeans skinny 38", "Calças", 159.9, 68, 9, 3],
+  ["Calça jeans reta 42", "Calças", 169.9, 72, 2, 3],
+  ["Vestido midi floral", "Vestidos", 189.9, 79, 7, 2],
+  ["Vestido tubinho preto", "Vestidos", 149.9, 61, 0, 2],
+  ["Blusa de linho off-white", "Blusas", 119.9, 47, 11, 3],
+  ["Cropped canelado", "Blusas", 59.9, 21, 14, 4],
+  ["Short alfaiataria bege", "Shorts", 99.9, 39, 6, 2],
+  ["Sandália rasteira caramelo 36", "Calçados", 89.9, 34, 1, 2],
+  ["Tênis casual branco 37", "Calçados", 219.9, 98, 5, 2],
+  ["Bolsa tiracolo couro", "Acessórios", 179.9, 72, 4, 1],
+  ["Cinto fivela dourada", "Acessórios", 69.9, 22, 10, 3],
+  ["Brinco argola média", "Acessórios", 39.9, 11, 22, 5],
+];
+
+/** Loja de exemplo: produtos com código de barras e algumas vendas no caixa de hoje. */
+async function montarEstoqueDemo(empresaId: string, usuarioId: string) {
+  const db = obterDb();
+  const ids: string[] = [];
+  for (const [i, [nome, categoria, preco, custo, saldo, minimo]] of PRODUTOS_LOJA.entries()) {
+    const id = await salvarProduto(
+      db,
+      empresaId,
+      null,
+      { nome, sku: null, codigoBarras: `789100000${String(1000 + i).padStart(4, "0")}`, categoria, unidade: "un", precoCentavos: R(preco), minimoMil: minimo * 1000, controlaEstoque: true, ativo: true },
+      usuarioId,
+      { saldoMil: saldo * 1000, custoCentavos: R(custo) },
+    );
+    ids.push(id);
+  }
+  // Meta do mês, para a Meta do dia ter o que mostrar.
+  await db.insert(empresaPainel).values({ empresaId, metaCentavos: R(42000) }).onConflictDoUpdate({ target: empresaPainel.empresaId, set: { metaCentavos: R(42000) } });
+  const vendasHoje: { itens: [number, number][]; forma: "pix" | "credito" | "debito" | "dinheiro" }[] = [
+    { itens: [[0, 2], [12, 1]], forma: "pix" },
+    { itens: [[2, 1]], forma: "credito" },
+    { itens: [[7, 1], [13, 2]], forma: "debito" },
+    { itens: [[4, 1]], forma: "pix" },
+    { itens: [[8, 1], [11, 1]], forma: "credito" },
+  ];
+  for (const v of vendasHoje)
+    await registrarVendaCaixa(db, empresaId, usuarioId, {
+      itens: v.itens.map(([i, q]) => ({ produtoId: ids[i], quantidadeMil: q * 1000 })),
+      descontoCentavos: 0,
+      formaPagamento: v.forma,
+      clienteId: null,
+      aReceber: false,
+    });
 }
 
 const CARROS_PATIO: [string, number, number, number][] = [
