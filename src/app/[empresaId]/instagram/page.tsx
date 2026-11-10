@@ -7,6 +7,8 @@ import { InstagramAoVivo } from "./AoVivo";
 
 export const metadata = { title: "Instagram" };
 export const dynamic = "force-dynamic";
+// A IA escreve depois da resposta (after): o tempo da função precisa cobrir isso.
+export const maxDuration = 60;
 
 export default async function Instagram({ params }: { params: Promise<{ empresaId: string }> }) {
   const { empresaId } = await params;
