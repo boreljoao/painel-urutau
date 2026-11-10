@@ -42,6 +42,8 @@ interface Opcoes {
   /** Para onde ir depois de salvar; recebe o dia do horário. */
   aposSalvar: string;
   edicao?: Edicao;
+  /** Nome do campo do serviço no ramo: Procedimento, Tipo de sessão… */
+  rotuloServico?: string;
 }
 
 const formatarTel = (t: string | null) => {
@@ -90,6 +92,8 @@ function FormAgendamento(o: Opcoes & { salvo: (t: string, v?: Record<string, str
   const { erros, v, enviar, pendente, versao } = useSalvar(o.salvar, o.salvo, o.inicial);
   const [clienteId, setClienteId] = useState(v.clienteId ?? "");
   const [telefone, setTelefone] = useState(v.telefone ?? "");
+  // Bloquear: o horário fica ocupado na grade, sem ninguém marcado (almoço, folga, reunião).
+  const [bloquear, setBloquear] = useState(v.bloquear === "1");
   // Escolher um nome da lista liga o horário ao cliente e traz o telefone dele.
   const escolher = (nome: string) => {
     const c = o.clientes.find((x) => x.nome.toLowerCase() === nome.trim().toLowerCase());
@@ -100,8 +104,14 @@ function FormAgendamento(o: Opcoes & { salvo: (t: string, v?: Record<string, str
     <form key={versao} action={enviar} className="form-lancar">
       <input type="hidden" name="clienteId" value={clienteId} />
       {v.forcar && <input type="hidden" name="forcar" value="1" />}
-      <Campo rotulo={o.pessoa} erro={erros.nome} largo>
-        <input name="nome" list="agenda-clientes" defaultValue={v.nome} maxLength={120} autoComplete="off" required autoFocus={!v.nome} onChange={(e) => escolher(e.target.value)} placeholder="Comece a digitar o nome" />
+      {!o.edicao && (
+        <label className="campo-check largo">
+          <input type="checkbox" name="bloquear" value="1" checked={bloquear} onChange={(e) => setBloquear(e.target.checked)} />
+          <span>Bloquear este horário (sem atendimento)</span>
+        </label>
+      )}
+      <Campo rotulo={bloquear ? "Motivo (opcional)" : o.pessoa} erro={erros.nome} largo>
+        <input name="nome" list="agenda-clientes" defaultValue={v.nome} maxLength={120} autoComplete="off" required={!bloquear} autoFocus={!v.nome} onChange={(e) => escolher(e.target.value)} placeholder={bloquear ? "Ex.: almoço, reunião" : "Comece a digitar o nome"} />
         <datalist id="agenda-clientes">
           {o.clientes.map((c) => (
             <option key={c.id} value={c.nome} />
@@ -120,7 +130,7 @@ function FormAgendamento(o: Opcoes & { salvo: (t: string, v?: Record<string, str
       <Campo rotulo="WhatsApp (opcional)" erro={erros.telefone}>
         <input name="telefone" type="tel" inputMode="tel" placeholder="(21) 99999-8888" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
       </Campo>
-      <Campo rotulo="O que vai ser" erro={erros.servico} largo>
+      <Campo rotulo={o.rotuloServico ?? "O que vai ser"} erro={erros.servico} largo>
         <input name="servico" list="agenda-servicos" defaultValue={v.servico} maxLength={120} autoComplete="off" />
         <datalist id="agenda-servicos">
           {o.servicos.map((s) => (

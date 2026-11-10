@@ -252,11 +252,31 @@ export const ORDEM_PACOTES: Perfil[] = ["alimentacao", "consultorio", "revenda_v
 
 export const pacoteDe = (perfil: Perfil) => PACOTES[perfil] ?? PACOTES.financas;
 
+/** Os nomes do consultório mudam com a especialidade (odontologia: procedimento; psicologia: tipo de sessão). */
+export const ESPECIALIDADES = {
+  psicologia: { nome: "Psicologia", rotuloServico: "Tipo de sessão", atendimento: "Sessão", servicos: ["Sessão", "Primeira consulta", "Avaliação", "Retorno", "Sessão on-line"] },
+  odontologia: {
+    nome: "Odontologia",
+    rotuloServico: "Procedimento",
+    atendimento: "Atendimento",
+    servicos: ["Avaliação inicial", "Limpeza", "Restauração", "Retorno", "Canal", "Clareamento", "Extração"],
+  },
+  outra: { nome: "Outra", rotuloServico: "Tipo de atendimento", atendimento: "Atendimento", servicos: ["Consulta", "Retorno", "Avaliação"] },
+} as const;
+export type Especialidade = keyof typeof ESPECIALIDADES;
+export const especialidadeValida = (e: string | null | undefined): e is Especialidade => !!e && e in ESPECIALIDADES;
+
 /** A aba de agenda do pacote (o título muda: Agenda, Visitas, Visitas e test drive) e o expediente. */
-export function agendaDoPacote(perfil: Perfil) {
+export function agendaDoPacote(perfil: Perfil, especialidade?: string | null) {
   const p = pacoteDe(perfil);
   const aba = p.abas.find((a) => a.rota === "agenda");
-  return aba ? { aba, cfg: p.agenda ?? AGENDA_PADRAO } : null;
+  if (!aba) return null;
+  const cfg: ConfigAgenda = { ...(p.agenda ?? AGENDA_PADRAO), rotuloServico: p.agenda?.atendimento ?? "Serviço" };
+  if (perfil === "consultorio") {
+    const e = ESPECIALIDADES[especialidadeValida(especialidade) ? especialidade : "psicologia"];
+    return { aba, cfg: { ...cfg, atendimento: e.atendimento, servicos: [...e.servicos], rotuloServico: e.rotuloServico } };
+  }
+  return { aba, cfg };
 }
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();

@@ -1,79 +1,70 @@
 import Link from "next/link";
 import { obterDb } from "@/db";
-import { formatarDataCurta, hoje, mesAtual, mesValido, nomeDoMes, somarMeses } from "@/lib/datas";
-import { NOME_INTENCAO } from "@/lib/atendimento";
+import { hoje, mesAtual, mesValido, nomeDoMes, somarMeses } from "@/lib/datas";
 import { pode } from "@/lib/permissoes";
 import { listarConversas } from "@/lib/servidor/atendimento";
 import { prepararEmpresa } from "@/lib/servidor/automaticos";
 import { listarParaConferir } from "@/lib/servidor/conferencia";
 import { carregarPainel } from "@/lib/servidor/painel";
 import { exigirAcesso } from "@/servidor/acesso";
+import { atividadeRecente } from "@/servidor/atividade";
 import { faturamentoDoMesAnteriorAteODia } from "@/servidor/comparativo";
 import { agendaDoPacote, pacoteDe } from "@/pacotes/catalogo";
-import { NOME_STATUS, agoraEmMinutos, minutos } from "@/pacotes/agenda";
+import { agoraEmMinutos, minutos } from "@/pacotes/agenda";
 import { resumoDaAgenda } from "@/servidor/agenda";
 import { primeirosPassos } from "@/servidor/primeiros-passos";
+import { AoVivo } from "@/componentes/AoVivo";
 import { BotaoLancar } from "@/componentes/BotaoLancar";
-import { Icone } from "@/componentes/Icone";
-import { haQuanto, iniciais, porcento, reais, reaisCurto, tomDe } from "@/componentes/formato";
-import { BarrasFontes, BotaoConferir, Contador, Entrada, GraficoMeses, Medidor } from "@/componentes/vivos";
-import { conferir } from "./acoes";
+import { Icone, type NomeIcone } from "@/componentes/Icone";
+import { Minigrafico } from "@/componentes/Minigrafico";
+import { haQuanto, porcento, reais, reaisCurto } from "@/componentes/formato";
+import { Contador, Entrada, GraficoMeses, Medidor } from "@/componentes/vivos";
+import { pulsoDaEmpresa } from "./pulso";
 
 export const metadata = { title: "Visão geral" };
 export const dynamic = "force-dynamic";
 
 const ABREV = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const rotuloMes = (m: string) => `${ABREV[Number(m.slice(5)) - 1]}${m.endsWith("-01") ? ` ${m.slice(2, 4)}` : ""}`;
-
-function Cartao({ classe, titulo, acao, children }: { classe: string; titulo?: string; acao?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section className={`cartao ${classe}`}>
-      {titulo && (
-        <header className="cartao-topo">
-          <h2>{titulo}</h2>
-          {acao}
-        </header>
-      )}
-      {children}
-    </section>
-  );
-}
-
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+/** Variação em %, arredondada. */
+const variacaoPct = (atual: number, antes: number) => Math.round(((atual - antes) / Math.abs(antes)) * 1000) / 10;
 
-/** Variação em %, arredondada. Vazia quando não há base para comparar. */
-const variacaoPct = (atual: number, antes: number) => Math.round(((atual - antes) / antes) * 100);
-
-function Variacao({ v, contra }: { v: number; contra: string }) {
+function Delta({ v, contra }: { v: number | null; contra: string }) {
+  if (v == null || !Number.isFinite(v)) return null;
   const classe = v > 0 ? "sobe" : v < 0 ? "desce" : "igual";
   return (
-    <p className={`variacao ${classe}`}>
-      {v > 0 ? "▲" : v < 0 ? "▼" : "="} {Math.abs(v)}% <span className="oculto">em relação a</span>
-      <span aria-hidden> vs.</span> {contra}
-    </p>
+    <span className="vg-delta-bloco">
+      <span className={`vg-delta ${classe}`}>
+        {v > 0 ? "▲ +" : v < 0 ? "▼ " : "= "}
+        {Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+      </span>
+      <small>vs. {contra}</small>
+    </span>
   );
 }
 
-function VariacaoValor({ diferenca, contra }: { diferenca: number; contra: string }) {
-  const classe = diferenca > 0 ? "sobe" : diferenca < 0 ? "desce" : "igual";
+function Atalho({ href, icone, titulo, children, rodape }: { href: string; icone: NomeIcone; titulo: string; children: React.ReactNode; rodape: string }) {
   return (
-    <p className={`variacao ${classe}`}>
-      {diferenca > 0 ? `▲ ${reaisCurto(diferenca)} vs. ${contra}` : diferenca < 0 ? `▼ ${reaisCurto(-diferenca)} vs. ${contra}` : `= igual a ${contra}`}
-    </p>
+    <Link href={href} className="cartao vg-atalho">
+      <header>
+        <Icone nome={icone} />
+        <h2>{titulo}</h2>
+        <span aria-hidden>›</span>
+      </header>
+      <div className="vg-atalho-corpo">{children}</div>
+      <span className="link">
+        {rodape} <Icone nome="seta" />
+      </span>
+    </Link>
   );
 }
-
-const LinkPara =({ href, children }: { href: string; children: React.ReactNode }) => (
-  <Link className="link" href={href}>
-    {children} <Icone nome="seta" />
-  </Link>
-);
 
 export default async function VisaoGeral({ params, searchParams }: { params: Promise<{ empresaId: string }>; searchParams: Promise<{ mes?: string }> }) {
   const { empresaId } = await params;
   const { mes: pedido } = await searchParams;
   const ctx = await exigirAcesso(empresaId, "ver_painel");
-  const { empresa, papel, modulos } = ctx;
+  const { empresa, papel, modulos, config } = ctx;
   const atual = mesAtual();
   const mes = mesValido(pedido) && pedido <= atual ? pedido : atual;
   const db = obterDb();
@@ -81,65 +72,75 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
   const temWhatsapp = modulos.has("whatsapp") && pode(papel, "lancar");
   const ehAtual = mes === atual;
   const hojeData = hoje();
-  const daAgenda = agendaDoPacote(empresa.perfil);
-  const [{ resumo: r, fontes, grafico, vencimentos, dividas, imposto }, aConferir, conversas, antesAteHoje, agenda, inicio] = await Promise.all([
+  const daAgenda = agendaDoPacote(empresa.perfil, config?.especialidade);
+  const [{ resumo: r, fontes, grafico, vencimentos, imposto }, aConferir, conversas, antesAteHoje, agenda, inicio, atividade] = await Promise.all([
     carregarPainel(db, empresa, mes, hojeData),
     pode(papel, "conferir") ? listarParaConferir(db, empresaId) : [],
     temWhatsapp ? listarConversas(db, empresaId, "abertas") : [],
     ehAtual ? faturamentoDoMesAnteriorAteODia(db, empresaId, mes, Number(hojeData.slice(8))) : null,
     daAgenda ? resumoDaAgenda(empresaId) : null,
     primeirosPassos(empresaId, empresa.perfil),
+    atividadeRecente(db, empresaId),
   ]);
 
   const base = `/${empresaId}`;
   const pacote = pacoteDe(empresa.perfil);
   const anterior = grafico.at(-2);
+  const nomeAnterior = anterior ? nomeDoMes(anterior.mes).split(" ")[0].slice(0, 3) + "/" + anterior.mes.slice(0, 4) : "";
   const pe = r.pontoEquilibrio;
   const fracaoPe = pe.tipo === "valor" && pe.valor > 0 ? r.faturamento / pe.valor : 0;
   const atrasadas = vencimentos.filter((v) => v.atrasado && v.tipo === "pagar");
-  const vencemHoje = vencimentos.filter((v) => v.data === hojeData && v.tipo === "pagar");
+  const vencemHoje = vencimentos.filter((v) => v.data === hojeData && v.tipo === "pagar" && !v.atrasado);
   const chamaramEquipe = conversas.filter((c) => c.status === "humano").length;
   const agora = agoraEmMinutos();
   const semConfirmarHoje = agenda ? agenda.hoje.filter((a) => a.status === "marcado" && minutos(a.hora) > agora).length : 0;
   const pendencias = [
-    atrasadas.length > 0 && { href: `${base}/financeiro`, urgente: true, texto: `${plural(atrasadas.length, "conta atrasada", "contas atrasadas")} · ${reaisCurto(atrasadas.reduce((t, v) => t + v.valor, 0))}` },
-    vencemHoje.length > 0 && { href: `${base}/financeiro`, urgente: false, texto: `${plural(vencemHoje.length, "conta vence", "contas vencem")} hoje · ${reaisCurto(vencemHoje.reduce((t, v) => t + v.valor, 0))}` },
-    aConferir.length > 0 && { href: `${base}/vendas?ver=conferir`, urgente: false, texto: `${plural(aConferir.length, "venda", "vendas")} para conferir` },
-    semConfirmarHoje > 0 && { href: `${base}/agenda?ver=dia`, urgente: false, texto: `${plural(semConfirmarHoje, "horário de hoje", "horários de hoje")} sem confirmar` },
-    chamaramEquipe > 0 && { href: `${base}/whatsapp`, urgente: true, texto: `${plural(chamaramEquipe, "conversa chamou", "conversas chamaram")} a equipe` },
-  ].filter((p): p is { href: string; urgente: boolean; texto: string } => !!p);
+    atrasadas.length > 0 && { href: `${base}/financeiro?grupo=atrasadas#contas`, tom: "urgente", icone: "alerta" as const, texto: `${plural(atrasadas.length, "conta atrasada", "contas atrasadas")}` },
+    vencemHoje.length > 0 && { href: `${base}/financeiro?grupo=hoje#contas`, tom: "", icone: "agenda" as const, texto: `${plural(vencemHoje.length, "conta vence", "contas vencem")} hoje` },
+    aConferir.length > 0 && { href: `${base}/vendas?ver=conferir`, tom: "", icone: "vendas" as const, texto: `${plural(aConferir.length, "venda", "vendas")} para conferir` },
+    semConfirmarHoje > 0 && { href: `${base}/agenda#a-confirmar`, tom: "", icone: "relogio" as const, texto: `${plural(semConfirmarHoje, "horário", "horários")} a confirmar` },
+    chamaramEquipe > 0 && { href: `${base}/whatsapp`, tom: "urgente", icone: "whatsapp" as const, texto: `${plural(chamaramEquipe, "conversa pendente", "conversas pendentes")}` },
+  ].filter((p): p is { href: string; tom: string; icone: "alerta" | "agenda" | "vendas" | "relogio" | "whatsapp"; texto: string } => !!p);
 
-  // Mês corrente: contra o mesmo período do mês anterior. Mês fechado: contra o mês anterior inteiro.
-  const nomeAnterior = anterior ? nomeDoMes(anterior.mes).split(" ")[0] : "";
   const baseFat = ehAtual ? antesAteHoje : (anterior?.faturamento ?? null);
-  // Sem nenhuma venda ainda no mês corrente, "-100%" só assusta: fica a nota de como o mês anterior fechou.
   const deFaturamento = baseFat && (r.faturamento > 0 || !ehAtual) ? variacaoPct(r.faturamento, baseFat) : null;
-  const deLucro = !ehAtual && anterior ? r.lucro - anterior.lucro : null;
-  // O gráfico começa no primeiro mês com lançamento: antes disso a empresa não existia no painel
-  // (e o imposto fixo do MEI, estimado nesses meses, virava um prejuízo que nunca aconteceu).
-  // Mês sem nenhum lançamento conta como zero. A linha precisa de dois pontos, então com um mês só
-  // o anterior entra no desenho, zerado, mas fica fora das somas.
+  const deLucro = anterior && anterior.lucro !== 0 && !ehAtual ? variacaoPct(r.lucro, anterior.lucro) : null;
   const primeiro = Math.max(0, grafico.findIndex((g) => !g.semLancamentos));
   const periodo = grafico.slice(primeiro);
   const desenho = grafico.slice(Math.min(primeiro, grafico.length - 2)).map((g) => (g.semLancamentos ? { ...g, despesas: 0, lucro: 0 } : g));
   const anoCheio = periodo.length === grafico.length;
-  const desde = `desde ${nomeDoMes(periodo[0].mes).split(" ")[0]}`;
-  const melhorMes = [...periodo].sort((a, b) => b.faturamento - a.faturamento)[0];
   const linkMes = (m: string) => (m === atual ? base : `${base}?mes=${m}`);
-  // Empresa sem nenhum lançamento: no lugar dos zeros, o que fazer primeiro.
   const vazia = inicio.vazia;
   const faltam = inicio.passos.filter((p) => !p.feito).length;
   const recente = Date.now() - new Date(empresa.criadoEm).getTime() < 45 * 24 * 60 * 60 * 1000;
   const mostrarPassos = faltam > 0 && (vazia || recente);
   const temHistorico = grafico.some((g) => !g.semLancamentos);
+  const meta = config?.metaCentavos ?? null;
+  const fracaoMeta = meta ? r.faturamento / meta : 0;
+  const atrasadoTotal = atrasadas.reduce((t, v) => t + v.valor, 0);
+  const aPagar7 = vencimentos.filter((v) => v.tipo === "pagar" && !v.atrasado).reduce((t, v) => t + v.valor, 0);
+  const [ano, m] = mes.split("-").map(Number);
+  const vencimentoDas = `20/${String((m % 12) + 1).padStart(2, "0")}${m === 12 ? `/${ano + 1}` : ""}`;
+  const principalFonte = [...fontes].sort((a, b) => b.valor - a.valor)[0];
+
+  // O quarto atalho muda com o ramo: pátio, estoque, agenda ou WhatsApp.
+  const quarto =
+    empresa.perfil === "revenda_veiculos"
+      ? { href: `${base}/n/patio`, icone: "carro" as const, titulo: "Pátio e estoque", corpo: "Carros, status e dias parados", rodape: "Abrir pátio" }
+      : empresa.perfil === "varejo" || empresa.perfil === "alimentacao"
+        ? { href: `${base}/n/${pacote.abas[0]?.id ?? "estoque"}`, icone: "caixa" as const, titulo: "Estoque", corpo: "Produtos, entradas e baixas", rodape: "Abrir estoque" }
+        : daAgenda && agenda
+          ? { href: `${base}/agenda`, icone: "agenda" as const, titulo: daAgenda.aba.titulo, corpo: `${plural(agenda.hoje.length, "horário", "horários")} hoje`, rodape: "Abrir agenda" }
+          : { href: `${base}/whatsapp`, icone: "whatsapp" as const, titulo: "WhatsApp", corpo: `${plural(conversas.length, "conversa aberta", "conversas abertas")}`, rodape: "Abrir conversas" };
 
   return (
-    <>
-      <header className="titulo">
+    <div className="vg">
+      <header className="vg-topo">
         <div>
           <h1>Visão geral</h1>
           <p>
-            {ehAtual ? `${nomeDoMes(mes)}, até hoje` : nomeDoMes(mes)} · {empresa.cidade ?? empresa.nome}
+            {empresa.nome}
+            {empresa.cidade ? ` · ${empresa.cidade}` : ""}
           </p>
         </div>
         <div className="topo-acoes">
@@ -155,27 +156,29 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
       </header>
 
       {!vazia && (
-      <section className="precisa-hoje" aria-label="Precisa de você hoje">
-        <strong>Precisa de você hoje</strong>
-        {pendencias.length ? (
-          pendencias.map((p) => (
-            <Link key={p.texto} href={p.href} className={p.urgente ? "urgente" : ""}>
-              {p.urgente && <Icone nome="alerta" />}
-              {p.texto}
-            </Link>
-          ))
-        ) : (
-          <span className="em-dia">
-            <Icone nome="check" /> Tudo em dia: nada atrasado, nada para conferir.
-          </span>
-        )}
-      </section>
+        <section className="cartao vg-hoje" aria-label="Precisa de você hoje">
+          <strong>Precisa de você hoje</strong>
+          {pendencias.length ? (
+            pendencias.map((p) => (
+              <Link key={p.texto} href={p.href} className={`vg-pendencia ${p.tom}`}>
+                <Icone nome={p.icone} />
+                {p.texto}
+                <Icone nome="seta" />
+              </Link>
+            ))
+          ) : (
+            <span className="em-dia">
+              <Icone nome="check" /> Tudo em dia: nada atrasado, nada para conferir.
+            </span>
+          )}
+        </section>
       )}
 
-      <Entrada className="grade">
+      <Entrada className="vg-grade">
         {mostrarPassos && (
-          <Cartao classe="c12 primeiros-passos" titulo={vazia ? "Primeiros passos" : `Faltam ${plural(faltam, "passo", "passos")} para o painel ficar completo`}>
-            {vazia && <p className="nota">O painel se monta com o que você lança. Comece por aqui: em poucos minutos aparecem o faturamento, o lucro e o caixa do mês.</p>}
+          <section className="cartao vg-cheio primeiros-passos">
+            <h2>{vazia ? "Primeiros passos" : `Faltam ${plural(faltam, "passo", "passos")} para o painel ficar completo`}</h2>
+            {vazia && <p className="nota">O painel se monta com o que você lança. Em poucos minutos aparecem o faturamento, o lucro e o caixa do mês.</p>}
             <ol className="passos">
               {inicio.passos.map((p, i) => (
                 <li key={p.id} className={p.feito ? "feito" : ""}>
@@ -192,239 +195,154 @@ export default async function VisaoGeral({ params, searchParams }: { params: Pro
                 </li>
               ))}
             </ol>
-          </Cartao>
+          </section>
         )}
-        {daAgenda && agenda && (
-          <Cartao classe="c12 hoje-agenda" titulo={`Hoje · ${daAgenda.aba.titulo}`} acao={<LinkPara href={`${base}/agenda?ver=dia`}>Abrir agenda</LinkPara>}>
-            {agenda.hoje.length ? (
-              <ol className="hoje-agenda-lista">
-                {agenda.hoje.map((a) => (
-                  <li key={a.id} className={`situacao-${a.status} ${minutos(a.hora) + a.duracaoMin <= agora ? "passou" : ""}`}>
-                    <Link href={`${base}/agenda?editar=${a.id}`}>
-                      <strong>{a.hora}</strong>
-                      <span>{a.nome}</span>
-                      <span className="nota">{a.servico}</span>
-                      <span className={`pilula situacao-${a.status}`}>{NOME_STATUS[a.status]}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="vazio">Nada marcado para hoje.</p>
-            )}
-            {agenda.faltasNoMes > 0 && <p className="nota">{plural(agenda.faltasNoMes, "falta", "faltas")} neste mês.</p>}
-          </Cartao>
-        )}
+
         {!vazia && (
           <>
-        <Cartao classe="c3" titulo="Faturamento">
-          <Contador className="grande" valor={r.faturamento} />
-          {deFaturamento != null && <Variacao v={deFaturamento} contra={ehAtual ? `o mesmo período de ${nomeAnterior}` : nomeAnterior} />}
-          <p className="nota">{anterior && anterior.faturamento > 0 ? `${nomeAnterior} fechou em ${reaisCurto(anterior.faturamento)}.` : "Primeiro mês com lançamentos."}</p>
-        </Cartao>
-        <Cartao classe="c3" titulo="Lucro líquido">
-          <Contador className={`grande ${r.lucro < 0 ? "ruim" : ""}`} valor={r.lucro} />
-          {deLucro != null && <VariacaoValor diferenca={deLucro} contra={nomeAnterior} />}
-          <p className="nota">
-            {r.margem == null ? "Sem faturamento no mês." : `Margem de ${porcento(r.margem, 1)}: de cada R$ 100 vendidos, sobraram ${reais(Math.round(r.margem / 10), true)}.`}
-          </p>
-        </Cartao>
-        <Cartao classe="c3" titulo="Caixa do mês">
-          <Contador className={`grande ${r.caixa.saldo < 0 ? "ruim" : ""}`} valor={r.caixa.saldo} />
-          <p className="nota">
-            Entrou {reaisCurto(r.caixa.entradas)} · saiu {reaisCurto(r.caixa.saidas)}
-          </p>
-        </Cartao>
-        <Cartao classe="c3 meta" titulo="Ponto de equilíbrio">
-          {pe.tipo === "valor" ? (
-            <>
-              <Medidor fracao={fracaoPe} rotulo={porcento(Math.round(fracaoPe * 100_000))} />
-              <p className="nota centro">
-                {pe.folga >= 0 ? `Passou do ponto em ${reaisCurto(pe.folga)}: daqui pra frente é lucro.` : `Faltam ${reaisCurto(-pe.folga)} para não ter prejuízo (precisa de ${reaisCurto(pe.valor)}).`}
-              </p>
-            </>
-          ) : (
-            <p className="nota">{pe.tipo === "sem_faturamento" ? "Ainda sem vendas no mês." : "Os custos variáveis passam do faturamento: não há ponto de equilíbrio."}</p>
-          )}
-        </Cartao>
-
-        <Cartao classe="c8">
-          {temHistorico ? (
-            <>
-          <GraficoMeses titulo={anoCheio ? "Últimos 12 meses" : "Desde o primeiro lançamento"} pontos={desenho.map((g) => ({ rotulo: rotuloMes(g.mes), faturamento: g.faturamento, despesas: g.despesas, lucro: g.lucro }))} />
-          <dl className="linha-numeros">
-            {melhorMes.faturamento > 0 && (
-              <div>
-                <dt>Melhor mês</dt>
-                <dd>
-                  {nomeDoMes(melhorMes.mes)} · {reaisCurto(melhorMes.faturamento)}
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt>Soma {anoCheio ? "de 12 meses" : desde}</dt>
-              <dd>{reaisCurto(periodo.reduce((s, g) => s + g.faturamento, 0))}</dd>
-            </div>
-            <div>
-              <dt>Lucro {anoCheio ? "de 12 meses" : desde}</dt>
-              <dd>{reaisCurto(periodo.reduce((s, g) => s + g.lucro, 0))}</dd>
-            </div>
-          </dl>
-            </>
-          ) : (
-            <>
-              <header className="cartao-topo">
-                <h2>Últimos 12 meses</h2>
+            <Link href={`${base}/vendas${ehAtual ? "" : `?mes=${mes}`}`} className="cartao vg-numero">
+              <header>
+                <h2>Faturamento</h2>
+                <Delta v={deFaturamento} contra={nomeAnterior} />
               </header>
-              <p className="vazio">O gráfico aparece com os primeiros lançamentos.</p>
-            </>
-          )}
-        </Cartao>
-        <Cartao classe="c4" titulo="De onde veio o faturamento">
-          {fontes.some((f) => f.valor > 0) ? (
-            <BarrasFontes linhas={fontes.filter((f) => f.valor > 0).map((f) => ({ nome: f.nome, valor: f.valor, participacao: porcento(f.participacao, 1) }))} />
-          ) : (
-            <p className="vazio">Nenhuma venda lançada neste mês.</p>
-          )}
-          <div className="cartao-pe">
-            <LinkPara href={`${base}/vendas`}>Ver as vendas</LinkPara>
-          </div>
-        </Cartao>
-          </>
-        )}
-
-        {!vazia && (
-          <>
-        {temWhatsapp && (
-          <Cartao classe="c7" titulo="Conversas no WhatsApp" acao={<LinkPara href={`${base}/whatsapp`}>Todas</LinkPara>}>
-            {conversas.length ? (
-              <ul className="lista-conversas">
-                {conversas.slice(0, 5).map((c) => {
-                  const nome = c.nome ?? c.telefone;
-                  return (
-                    <li key={c.id}>
-                      <Link href={`${base}/whatsapp/${c.id}`}>
-                        <span className="avatar" style={{ background: tomDe(nome) }}>
-                          {iniciais(nome)}
-                        </span>
-                        <div>
-                          <p className="nome-linha">
-                            <strong>{nome}</strong>
-                            <span className="nota">{haQuanto(new Date(c.ultimaMensagemEm))}</span>
-                          </p>
-                          <p className="trecho">
-                            {c.ultimoAutor === "agente" ? "Atendente: " : c.ultimoAutor === "humano" ? "Equipe: " : ""}
-                            {c.ultimoTexto ?? ""}
-                          </p>
-                        </div>
-                        {c.status === "humano" ? (
-                          <span className="pilula pilula-equipe">Chamou a equipe</span>
-                        ) : c.naoLidas ? (
-                          <b className="selo">{c.naoLidas}</b>
-                        ) : c.intencao ? (
-                          <span className="pilula">{NOME_INTENCAO[c.intencao] ?? c.intencao}</span>
-                        ) : null}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+              <Contador className="grande" valor={r.faturamento} />
+              <Minigrafico valores={periodo.map((g) => g.faturamento)} rotulo="Faturamento dos últimos meses" />
+            </Link>
+            <Link href={`${base}/financeiro${ehAtual ? "" : `?mes=${mes}`}`} className="cartao vg-numero">
+              <header>
+                <h2>Lucro líquido</h2>
+                <Delta v={deLucro} contra={nomeAnterior} />
+              </header>
+              <Contador className={`grande ${r.lucro < 0 ? "ruim" : ""}`} valor={r.lucro} />
+              <Minigrafico valores={periodo.map((g) => g.lucro)} rotulo="Lucro dos últimos meses" />
+            </Link>
+            <Link href={`${base}/financeiro${ehAtual ? "" : `?mes=${mes}`}#caixa`} className="cartao vg-numero">
+              <header>
+                <h2>Caixa do mês</h2>
+              </header>
+              <Contador className={`grande ${r.caixa.saldo < 0 ? "ruim" : ""}`} valor={r.caixa.saldo} />
+              <p className="nota">
+                Entrou {reaisCurto(r.caixa.entradas)} · saiu {reaisCurto(r.caixa.saidas)}
+              </p>
+            </Link>
+            {meta ? (
+              <Link href={pode(papel, "gerenciar") ? `${base}/pacote#meta` : `${base}/vendas`} className="cartao vg-numero">
+                <header>
+                  <h2>Meta de vendas</h2>
+                </header>
+                <strong className="grande">{Math.round(fracaoMeta * 100)}%</strong>
+                <span className="vg-barra" aria-hidden>
+                  <span style={{ width: `${Math.min(100, fracaoMeta * 100)}%` }} />
+                </span>
+                <p className="nota">
+                  {reaisCurto(r.faturamento)} de {reaisCurto(meta)}
+                </p>
+              </Link>
             ) : (
-              <p className="vazio">Nenhuma conversa aberta agora.</p>
+              <Link href={pode(papel, "gerenciar") ? `${base}/pacote#meta` : `${base}/financeiro`} className="cartao vg-numero meta">
+                <header>
+                  <h2>Ponto de equilíbrio</h2>
+                </header>
+                {pe.tipo === "valor" ? (
+                  <>
+                    <Medidor fracao={fracaoPe} rotulo={porcento(Math.round(fracaoPe * 100_000))} />
+                    <p className="nota">{pe.folga >= 0 ? `Passou do ponto em ${reaisCurto(pe.folga)}.` : `Faltam ${reaisCurto(-pe.folga)} para não ter prejuízo.`}</p>
+                  </>
+                ) : (
+                  <p className="nota">{pe.tipo === "sem_faturamento" ? "Ainda sem vendas no mês." : "Os custos variáveis passam do faturamento."}</p>
+                )}
+                {pode(papel, "gerenciar") && <p className="nota">Defina uma meta de vendas em Seu pacote.</p>}
+              </Link>
             )}
-          </Cartao>
-        )}
-        {pode(papel, "conferir") && (
-          <Cartao classe={temWhatsapp ? "c5" : "c6"} titulo="Entrou sozinho, falta o seu check">
-            {aConferir.length ? (
-              <ul className="lista-conferir">
-                {aConferir.slice(0, 5).map((v) => (
-                  <li key={v.id}>
-                    <div>
-                      <p>{v.descricao || v.fonte}</p>
-                      <p className="nota">
-                        {v.cliente ?? "Sem cliente"} · {formatarDataCurta(v.data)}
-                      </p>
-                    </div>
-                    <strong>{reais(v.valor, true)}</strong>
-                    <BotaoConferir acao={conferir.bind(null, empresaId, v.id)} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="vazio">Nada para conferir. Tudo o que entrou sozinho já foi visto.</p>
-            )}
-          </Cartao>
-        )}
 
-        <Cartao classe="c7" titulo={ehAtual ? "Vence nos próximos dias" : "Vencimentos do mês"}>
-          {vencimentos.length ? (
-            <ul className="lista-contas">
-              {vencimentos.slice(0, 6).map((v) => (
-                <li key={`${v.tipo}-${v.id}`} className={v.atrasado ? "atrasado" : ""}>
-                  <span className={`pilula ${v.tipo === "pagar" ? "pilula-pagar" : "pilula-receber"}`}>{v.tipo === "pagar" ? "Pagar" : "Receber"}</span>
-                  <div>
-                    <p>{v.descricao}</p>
-                    <p className="nota">{v.atrasado ? `Atrasado desde ${formatarDataCurta(v.data)}` : formatarDataCurta(v.data)}</p>
-                  </div>
-                  <strong className={v.tipo === "pagar" ? "" : "bom"}>
-                    {v.tipo === "pagar" ? "−" : "+"}
-                    {reais(v.valor, true)}
-                  </strong>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="vazio">Nada a pagar ou receber nos próximos dias.</p>
-          )}
-        </Cartao>
-        <div className={`${pode(papel, "conferir") && !temWhatsapp ? "c6" : "c5"} pilha`}>
-          <Cartao classe="mini" titulo="Impostos estimados">
-            <p className="medio">{imposto.total == null ? "—" : reais(imposto.total)}</p>
-            <p className="nota">{imposto.regime === "erro" ? imposto.mensagem : "Estimativa do mês. Confirme com o seu contador."}</p>
-          </Cartao>
-          <Cartao classe="mini" titulo="Dívidas">
-            <p className="medio">{reais(dividas.saldo)}</p>
-            <p className="nota">
-              {dividas.quantidade ? `${dividas.quantidade} ${dividas.quantidade === 1 ? "contrato" : "contratos"} · ${reaisCurto(dividas.venceNoMes)} vencem neste mês` : "Nenhuma dívida cadastrada."}
-            </p>
-          </Cartao>
-        </div>
-
-          </>
-        )}
-
-        {pacote.abas.length > 0 && (
-          <Cartao classe="c12" titulo={`Do seu negócio · ${pacote.nome}`} acao={pode(papel, "gerenciar") ? <LinkPara href={`${base}/pacote`}>Trocar pacote</LinkPara> : undefined}>
-            <ul className="abas-negocio">
-              {pacote.abas.map((a) => (
-                <li key={a.id}>
-                  <Link href={a.rota ? `${base}/${a.rota}` : `${base}/n/${a.id}`}>
-                    <Icone nome={a.icone} />
-                    <span>
-                      <strong>{a.titulo}</strong>
-                      <span className="nota">{a.desc}</span>
-                    </span>
-                    {!a.rota && <small className="em-breve">em breve</small>}
-                  </Link>
-                </li>
-              ))}
-              {daAgenda && (
-                // No celular a agenda ocupa o lugar do financeiro na barra de baixo; ele continua aqui.
-                <li className="so-celular">
-                  <Link href={`${base}/financeiro`}>
-                    <Icone nome="financeiro" />
-                    <span>
-                      <strong>Financeiro</strong>
-                      <span className="nota">Despesas, contas e caixa</span>
-                    </span>
-                  </Link>
-                </li>
+            <section className="cartao vg-grafico">
+              {temHistorico ? (
+                <GraficoMeses
+                  titulo={anoCheio ? "Últimos 12 meses" : "Desde o primeiro lançamento"}
+                  pontos={desenho.map((g) => ({ rotulo: rotuloMes(g.mes), faturamento: g.faturamento, despesas: g.despesas, lucro: g.lucro }))}
+                />
+              ) : (
+                <>
+                  <header className="cartao-topo">
+                    <h2>Últimos 12 meses</h2>
+                  </header>
+                  <p className="vazio">O gráfico aparece com os primeiros lançamentos.</p>
+                </>
               )}
-            </ul>
-          </Cartao>
+            </section>
+
+            <section className="cartao vg-atividade">
+              <header className="cartao-topo">
+                <h2>Atividade da operação</h2>
+                <AoVivo pulso={pulsoDaEmpresa.bind(null, empresaId)} />
+              </header>
+              {atividade.length ? (
+                <ol>
+                  {atividade.map((a, i) => {
+                    const conteudo = (
+                      <>
+                        <Icone nome={a.icone} />
+                        <span>
+                          <b>{i === 0 && Date.now() - a.em.getTime() < 120_000 ? "Agora" : haQuanto(a.em)}</b> · {a.texto}
+                        </span>
+                        {a.link && <span aria-hidden>›</span>}
+                      </>
+                    );
+                    return (
+                      <li key={a.id} data-vivo={`${a.id}:1`} className={i === 0 ? "recente" : ""}>
+                        {a.link ? <Link href={`${base}/${a.link}`}>{conteudo}</Link> : <div>{conteudo}</div>}
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : (
+                <p className="vazio">Vendas, pagamentos e horários aparecem aqui na hora em que acontecem.</p>
+              )}
+            </section>
+
+            <Atalho href={`${base}/financeiro${atrasadas.length ? "?grupo=atrasadas" : ""}#contas`} icone="documento" titulo="Contas e boletos" rodape="Ver contas">
+              {atrasadoTotal > 0 ? (
+                <p className="vg-faixa ruim">
+                  <Icone nome="alerta" /> {reais(atrasadoTotal)} vencidos
+                </p>
+              ) : (
+                <p className="vg-faixa">
+                  <Icone nome="check" /> {aPagar7 ? `${reais(aPagar7)} nos próximos 7 dias` : "Nada vencido"}
+                </p>
+              )}
+            </Atalho>
+            <Atalho href={`${base}/financeiro${ehAtual ? "" : `?mes=${mes}`}#despesas`} icone="cartao" titulo="Cartões e despesas" rodape="Ver lançamentos">
+              <p className="vg-faixa">
+                <Icone nome="financeiro" /> {reais(r.despesasLancadas)} em despesas no mês
+              </p>
+            </Atalho>
+            <Atalho href={`${base}/financeiro${ehAtual ? "" : `?mes=${mes}`}#impostos`} icone="banco" titulo="Impostos" rodape="Ver obrigações">
+              <p className="vg-faixa">
+                <Icone nome="agenda" /> {imposto.total == null ? "Confirme com o contador" : `${reais(imposto.total)} · vence ${vencimentoDas}`}
+              </p>
+            </Atalho>
+            <Atalho href={quarto.href} icone={quarto.icone} titulo={quarto.titulo} rodape={quarto.rodape}>
+              <p className="vg-faixa">
+                <Icone nome={quarto.icone} /> {quarto.corpo}
+              </p>
+            </Atalho>
+
+            <nav className="cartao vg-rodape" aria-label="Atalhos">
+              {daAgenda && (
+                <Link href={`${base}/agenda`}>
+                  <Icone nome="agenda" /> {daAgenda.aba.titulo} <span aria-hidden>›</span>
+                </Link>
+              )}
+              <Link href={`${base}/financeiro${ehAtual ? "" : `?mes=${mes}`}`}>
+                <Icone nome="financeiro" /> Ponto de equilíbrio{pe.tipo === "valor" ? ` · ${porcento(Math.round(fracaoPe * 100_000))}` : ""} <span aria-hidden>›</span>
+              </Link>
+              <Link href={`${base}/vendas${ehAtual ? "" : `?mes=${mes}`}`}>
+                <Icone nome="vendas" /> Origem do faturamento{principalFonte?.valor ? ` · ${principalFonte.nome}` : ""} <span aria-hidden>›</span>
+              </Link>
+            </nav>
+          </>
         )}
       </Entrada>
-    </>
+    </div>
   );
 }

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function Inicio() {
   const usuario = await exigirUsuario();
   const lista = await empresasDoUsuario(usuario);
-  if (lista.length === 1 && !usuario.superadmin) redirect(telaInicial(lista[0].id, lista[0].papel));
+  if (lista.length === 1 && !usuario.superadmin) redirect(telaInicial(lista[0].id, lista[0].papel, lista[0].perfil, lista[0]));
   return (
     <main className="entrar">
       <section className="entrar-cartao escolher" aria-labelledby="escolher-titulo">
@@ -22,7 +22,7 @@ export default async function Inicio() {
         <ul className="lista-empresas">
           {lista.map((e) => (
             <li key={e.id}>
-              <Link href={telaInicial(e.id, e.papel)} style={{ "--cor": corDoPerfil(e.perfil).cor } as React.CSSProperties}>
+              <Link href={telaInicial(e.id, e.papel, e.perfil, e)} style={{ "--cor": corDoPerfil(e.perfil).cor } as React.CSSProperties}>
                 <span className="marca-sinal">{e.nome[0]}</span>
                 <span>
                   <strong>{e.nome}</strong>

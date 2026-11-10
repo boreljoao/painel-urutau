@@ -24,7 +24,9 @@ import { excluirAgendamento, mudarStatusAgendamento, receberAgendamento, restaur
 import { JanelaAgendamento } from "@/pacotes/agenda-janela";
 import { AvisoPagina } from "@/componentes/editar";
 import { Icone } from "@/componentes/Icone";
-import { Topo, endereco } from "@/componentes/Topo";
+import { endereco } from "@/componentes/Topo";
+import { AoVivo, LinhaAgora } from "@/componentes/AoVivo";
+import { pulsoDaEmpresa } from "../pulso";
 import { reais } from "@/componentes/formato";
 import { BotaoAcao } from "@/componentes/vivos";
 
@@ -59,12 +61,14 @@ export default async function Agenda({
   const sp = await searchParams;
   const ctx = await exigirAcesso(empresaId, "ver_clientes");
   const base = `/${empresaId}/agenda`;
-  const daAgenda = agendaDoPacote(ctx.empresa.perfil);
+  const daAgenda = agendaDoPacote(ctx.empresa.perfil, ctx.config?.especialidade);
 
   if (!daAgenda)
     return (
       <>
-        <Topo titulo="Agenda" />
+        <header className="titulo">
+          <h1>Agenda</h1>
+        </header>
         <section className="cartao vazio-grande">
           <p>A agenda faz parte dos pacotes Consultório, Serviço com visita e Revenda de veículos.</p>
           {pode(ctx.papel, "gerenciar") && (
@@ -79,7 +83,7 @@ export default async function Agenda({
   const { aba, cfg } = daAgenda;
   const hj = hoje();
   const dia = dataValida(sp.dia) ? sp.dia : hj;
-  const ver = sp.ver === "dia" ? "dia" : "semana";
+  const ver = sp.ver === "dia" ? "dia" : sp.ver === "mes" ? "mes" : "semana";
   const seg = segundaDe(dia);
   const podeMarcar = pode(ctx.papel, "lancar");
   const filtros = {
@@ -90,7 +94,14 @@ export default async function Agenda({
 
   const editando = sp.editar && podeMarcar ? await agendamentoDaEmpresa(empresaId, sp.editar) : undefined;
   const abrindo = podeMarcar && (!!sp.novo || !!editando);
-  const [semana, opcoes] = await Promise.all([listarAgenda(empresaId, seg, somarDias(seg, 7)), abrindo ? opcoesDaAgenda(empresaId) : null]);
+  const primeiroDoMes = `${dia.slice(0, 7)}-01` as Data;
+  const inicioMes = segundaDe(primeiroDoMes);
+  const [semana, opcoes, proximos, doMes] = await Promise.all([
+    listarAgenda(empresaId, seg, somarDias(seg, 7)),
+    abrindo ? opcoesDaAgenda(empresaId) : null,
+    listarAgenda(empresaId, hj, somarDias(hj, 31)),
+    ver === "mes" ? listarAgenda(empresaId, inicioMes, somarDias(inicioMes, 42)) : null,
+  ]);
 
   const porDia = new Map<Data, LinhaAgenda[]>();
   for (const a of semana) porDia.set(a.data, [...(porDia.get(a.data) ?? []), a]);
@@ -144,6 +155,7 @@ export default async function Agenda({
           hoje={hj}
           fechar={fechar}
           aposSalvar={aposSalvar}
+          rotuloServico={cfg.rotuloServico}
           edicao={{
             status: a.status,
             recebido: !!a.vendaId,
@@ -188,6 +200,7 @@ export default async function Agenda({
           hoje={hj}
           fechar={fechar}
           aposSalvar={aposSalvar}
+          rotuloServico={cfg.rotuloServico}
         />
       );
     }
@@ -208,156 +221,272 @@ export default async function Agenda({
   const pxMin = 64 / 60;
   const altura = (faixa.fim - faixa.inicio) * 60 * pxMin;
 
+  // O que mostra na lateral e no topo.
+  const deHojeTodos = (porDia.get(hj) ?? []).filter((a) => ocupa(a.status) && a.status !== "bloqueado");
+  const aConfirmar = proximos.filter((a) => a.status === "marcado" && (a.data > hj || minutos(a.hora) + a.duracaoMin > agora)).slice(0, 6);
+  const proximoGeral = proximos.find(
+    (a) => ocupa(a.status) && a.status !== "bloqueado" && a.status !== "atendido" && a.status !== "faltou" && (a.data > hj || minutos(a.hora) + a.duracaoMin > agora),
+  );
+  const titulo = ctx.empresa.perfil === "consultorio" ? "Agenda de atendimentos" : aba.titulo;
+  const nomeHoje = nomeDoDia(hj);
+  const subtitulo = `${nomeHoje.charAt(0).toUpperCase()}${nomeHoje.slice(1)}${nomeHoje === "sábado" || nomeHoje === "domingo" ? "" : "-feira"}, ${diaMes(hj)} de ${hj.slice(0, 4)}`;
+  const diasGrade = ver === "dia" ? [dia] : dias;
+  const nomeMes = MESES[Number(dia.slice(5, 7)) - 1];
+  const rotuloPeriodo = ver === "mes" ? `${nomeMes.charAt(0).toUpperCase()}${nomeMes.slice(1)} de ${dia.slice(0, 4)}` : ver === "dia" ? `${nomeDoDia(dia)}, ${diaMes(dia)}` : nomeDaSemana(seg);
+  const anterior = ver === "mes" ? `${somarDias(primeiroDoMes, -1).slice(0, 7)}-01` : ver === "dia" ? somarDias(dia, -1) : somarDias(seg, -7);
+  const seguinte = ver === "mes" ? `${somarDias(primeiroDoMes, 32).slice(0, 7)}-01` : ver === "dia" ? somarDias(dia, 1) : somarDias(seg, 7);
+  const vivo = (a: LinhaAgenda) => `${a.id}:${new Date(a.atualizadoEm).getTime()}`;
+  const fim = (a: LinhaAgenda) => horaDe(minutos(a.hora) + a.duracaoMin);
+  const verLink = ver === "semana" ? undefined : ver;
+  // Concordância: "nova sessão", "próxima visita"; "novo atendimento", "próximo horário".
+  const feminino = /(ão|a)$/.test(atend);
+  const novo = feminino ? "Nova" : "Novo";
+  const proximoRotulo = feminino ? "Próxima" : "Próximo";
+
   return (
     <>
-      <Topo titulo={aba.titulo} sub={ver === "semana" ? `Semana de ${nomeDaSemana(seg)}` : `${nomeDoDia(dia)}, ${diaMes(dia)}`}>
-        <div className="topo-acoes">
-          <nav className="seletor-mes" aria-label="Semana">
-            <Link
-              href={link({
-                dia: ver === "dia" ? somarDias(dia, -1) : somarDias(seg, -7),
-              })}
-              aria-label={ver === "dia" ? "Dia anterior" : "Semana anterior"}
-            >
-              ‹
-            </Link>
-            <Link className="agenda-hoje" href={link({ dia: undefined })} aria-current={dia === hj ? "date" : undefined}>
-              Hoje
-            </Link>
-            <Link
-              href={link({
-                dia: ver === "dia" ? somarDias(dia, 1) : somarDias(seg, 7),
-              })}
-              aria-label={ver === "dia" ? "Próximo dia" : "Próxima semana"}
-            >
-              ›
-            </Link>
-          </nav>
-          <nav className="alternar agenda-ver" aria-label="Ver">
-            <Link href={link({ ver: undefined })} aria-current={ver === "semana" ? "page" : undefined}>
-              Semana
-            </Link>
-            <Link href={link({ ver: "dia" })} aria-current={ver === "dia" ? "page" : undefined}>
-              Dia
-            </Link>
-          </nav>
-          {podeMarcar && (
-            <Link className="botao" href={link({ novo: "1" })} scroll={false}>
-              <span aria-hidden>+</span> Marcar
-            </Link>
-          )}
+      <header className="agenda2-topo">
+        <div>
+          <h1>{titulo}</h1>
+          <p>{subtitulo}</p>
         </div>
-      </Topo>
+        {podeMarcar && (
+          <Link className="botao" href={link({ novo: "1" })} scroll={false}>
+            <span aria-hidden>+</span> {novo} {atend}
+          </Link>
+        )}
+      </header>
+      <div className="agenda2-chips" aria-label="Resumo">
+        <Link href={link({ dia: undefined, ver: "dia" })} className="agenda2-chip">
+          <Icone nome="agenda" /> Hoje · {plural(deHojeTodos.length, atend, atendPlural)}
+        </Link>
+        {aConfirmar.length > 0 && (
+          <a href="#a-confirmar" className="agenda2-chip alerta">
+            <Icone nome="relogio" /> {aConfirmar.length} a confirmar
+          </a>
+        )}
+        {proximoGeral && (
+          <Link
+            href={link({ dia: proximoGeral.data === hj ? undefined : proximoGeral.data, editar: podeMarcar ? proximoGeral.id : undefined })}
+            scroll={false}
+            className="agenda2-chip"
+          >
+            <Icone nome="agenda" /> {proximoRotulo} · {proximoGeral.data === hj ? proximoGeral.hora.replace(":", "h") : `${diaCurto(proximoGeral.data)} ${proximoGeral.hora}`}
+          </Link>
+        )}
+      </div>
 
       {janela}
-      {sp.salvo && <AvisoPagina texto="Horário salvo na agenda." limpar={link({})} />}
+      {sp.salvo && <AvisoPagina texto="Agenda atualizada." limpar={link({})} />}
       {sp.excluido && <AvisoPagina texto="Horário apagado." desfazer={restaurarAgendamento.bind(null, empresaId, sp.excluido)} limpar={link({})} />}
 
-      <section className="agenda-resumo" aria-label="Resumo">
-        <p>
-          <strong>{plural(deHoje.length, atend, atendPlural)}</strong> hoje
-          {proximo && (
-            <span className="nota">
-              {" "}
-              · próximo: {proximo.nome.split(" ")[0]} às {proximo.hora}
-            </span>
-          )}
-        </p>
-        {livresHoje !== null && (
-          <p>
-            <strong>{plural(livresHoje, "horário livre", "horários livres")}</strong> ainda hoje
-          </p>
-        )}
-        {semConfirmar > 0 && (
-          <p className="agenda-resumo-alerta">
-            <strong>{plural(semConfirmar, "horário", "horários")}</strong> sem confirmar nesta semana
-          </p>
-        )}
-      </section>
+      <div className={`agenda agenda2 ver-${ver === "dia" ? "semana" : ver}`}>
+        <section className="cartao agenda-semana agenda2-grade" aria-label={rotuloPeriodo}>
+          <div className="agenda2-barra">
+            <nav className="seletor-mes" aria-label="Período">
+              <Link href={link({ dia: anterior })} aria-label="Anterior" scroll={false}>
+                ‹
+              </Link>
+              <span className="agenda2-periodo">{rotuloPeriodo}</span>
+              <Link href={link({ dia: seguinte })} aria-label="Próximo" scroll={false}>
+                ›
+              </Link>
+            </nav>
+            <Link className="botao-pequeno" href={link({ dia: undefined })} aria-current={dia === hj ? "date" : undefined} scroll={false}>
+              Hoje
+            </Link>
+            <nav className="agenda2-ver" aria-label="Ver">
+              {(
+                [
+                  ["dia", "Dia"],
+                  ["semana", "Semana"],
+                  ["mes", "Mês"],
+                ] as const
+              ).map(([k, nome]) => (
+                <Link key={k} href={link({ ver: k === "semana" ? undefined : k })} aria-current={ver === k ? "page" : undefined} scroll={false}>
+                  {nome}
+                </Link>
+              ))}
+            </nav>
+          </div>
 
-      <div className={`agenda ver-${ver}`}>
-        {/* Semana: a grade grande, com o tamanho de cada horário proporcional à duração. */}
-        <section className="cartao agenda-semana" aria-label={`Semana de ${nomeDaSemana(seg)}`}>
-          <div
-            className="semana"
-            style={
-              {
-                "--dias": dias.length,
-                "--altura": `${altura}px`,
-              } as React.CSSProperties
-            }
-          >
-            <div className="semana-cab">
-              <span />
-              {dias.map((d) => {
-                const n = (porDia.get(d) ?? []).filter((a) => ocupa(a.status)).length;
-                return (
-                  <Link key={d} href={link({ dia: d === hj ? undefined : d, ver: "dia" })} className={`semana-dia ${d === hj ? "hoje" : ""}`}>
-                    <span>{nomeDoDia(d, true)}</span>
-                    <strong>{Number(d.slice(8))}</strong>
-                    {n > 0 && <em>{n}</em>}
-                  </Link>
-                );
-              })}
+          {ver === "mes" && doMes ? (
+            <div className="agenda2-mes">
+              {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((n) => (
+                <span key={n} className="agenda2-mes-nome">
+                  {n}
+                </span>
+              ))}
+              {Array.from({ length: 42 }, (_, i) => somarDias(inicioMes, i))
+                .filter((d, i, todos) => i < 35 || todos.slice(35).some((x) => x.slice(0, 7) === dia.slice(0, 7)))
+                .map((d) => {
+                  const lista = doMes.filter((a) => a.data === d && ocupa(a.status));
+                  return (
+                    <Link
+                      key={d}
+                      href={link({ dia: d === hj ? undefined : d, ver: "dia" })}
+                      className={`agenda2-mes-dia${d === hj ? " hoje" : ""}${d.slice(0, 7) !== dia.slice(0, 7) ? " fora" : ""}`}
+                      scroll={false}
+                    >
+                      <strong>{Number(d.slice(8))}</strong>
+                      {lista.slice(0, 3).map((a) => (
+                        <span key={a.id} className={`agenda2-mes-item situacao-${a.status}`} data-vivo={vivo(a)}>
+                          {a.hora} {a.status === "bloqueado" ? "Bloqueado" : a.nome.split(" ")[0]}
+                        </span>
+                      ))}
+                      {lista.length > 3 && <em>+{lista.length - 3}</em>}
+                    </Link>
+                  );
+                })}
             </div>
-            <div className="semana-corpo">
-              <div className="semana-horas" aria-hidden>
-                {Array.from({ length: faixa.fim - faixa.inicio }, (_, i) => (
-                  <span key={i} style={{ top: `${i * 64}px` }}>
-                    {String(faixa.inicio + i).padStart(2, "0")}h
-                  </span>
+          ) : (
+            <div className="semana" style={{ "--dias": diasGrade.length, "--altura": `${altura}px` } as React.CSSProperties}>
+              <div className="semana-cab">
+                <span />
+                {diasGrade.map((d) => {
+                  const n = (porDia.get(d) ?? []).filter((a) => ocupa(a.status) && a.status !== "bloqueado").length;
+                  return (
+                    <Link key={d} href={link({ dia: d === hj ? undefined : d, ver: "dia" })} className={`semana-dia ${d === hj ? "hoje" : ""}`} scroll={false}>
+                      <span>{nomeDoDia(d, true)}</span>
+                      <strong>{Number(d.slice(8))}</strong>
+                      {n > 0 && <em>{n}</em>}
+                    </Link>
+                  );
+                })}
+              </div>
+              <div className="semana-corpo">
+                <div className="semana-horas" aria-hidden>
+                  {Array.from({ length: faixa.fim - faixa.inicio }, (_, i) => (
+                    <span key={i} style={{ top: `${i * 64}px` }}>
+                      {String(faixa.inicio + i).padStart(2, "0")}:00
+                    </span>
+                  ))}
+                </div>
+                {diasGrade.map((d) => (
+                  <div key={d} className={`semana-coluna ${d === hj ? "hoje" : ""} ${d < hj ? "passado" : ""}`}>
+                    {podeMarcar &&
+                      d >= hj &&
+                      Array.from({ length: (faixa.fim - faixa.inicio) * 2 }, (_, i) => {
+                        const m = faixa.inicio * 60 + i * 30;
+                        if (d === hj && m + 30 <= agora) return null;
+                        const h = horaDe(m);
+                        return (
+                          <Link
+                            key={i}
+                            className="semana-vaga"
+                            data-hora={h}
+                            style={{ top: `${i * 32}px`, height: "32px" }}
+                            href={link({ dia: d, novo: h, ver: verLink })}
+                            scroll={false}
+                            aria-label={`Marcar ${nomeDoDia(d)} às ${h}`}
+                          />
+                        );
+                      })}
+                    {pistas(porDia.get(d) ?? []).map((a) => (
+                      <Link
+                        key={a.id}
+                        data-vivo={vivo(a)}
+                        href={podeMarcar ? link({ dia: d, editar: a.id, ver: verLink }) : link({ dia: d, ver: "dia" })}
+                        scroll={false}
+                        className={`marcacao situacao-${a.status} ${a.duracaoMin < 40 ? "curta" : ""} ${a.id === proximoGeral?.id ? "proximo" : ""}`}
+                        style={{
+                          top: `${(minutos(a.hora) - faixa.inicio * 60) * pxMin}px`,
+                          height: `${Math.max(a.duracaoMin * pxMin, 22)}px`,
+                          left: `calc(${(a.pista / a.pistas) * 100}% + 3px)`,
+                          width: `calc(${100 / a.pistas}% - 6px)`,
+                        }}
+                        title={`${a.hora}–${fim(a)} · ${a.nome}${a.servico ? ` · ${a.servico}` : ""} · ${NOME_STATUS[a.status]}`}
+                      >
+                        {a.status === "bloqueado" ? (
+                          <>
+                            <span className="marcacao-hora">
+                              {a.hora}–{fim(a)}
+                            </span>
+                            <strong>{a.nome}</strong>
+                          </>
+                        ) : (
+                          <>
+                            <strong>
+                              {a.hora} · {a.nome}
+                            </strong>
+                            {(a.servico || a.profissional) && <span className="marcacao-det">{[a.servico, a.profissional].filter(Boolean).join(" · ")}</span>}
+                          </>
+                        )}
+                      </Link>
+                    ))}
+                    {d === hj && <LinhaAgora inicioMin={faixa.inicio * 60} fimMin={faixa.fim * 60} pxMin={pxMin} mostrarHora />}
+                  </div>
                 ))}
               </div>
-              {dias.map((d) => (
-                <div key={d} className={`semana-coluna ${d === hj ? "hoje" : ""} ${d < hj ? "passado" : ""}`}>
-                  {podeMarcar &&
-                    d >= hj &&
-                    Array.from({ length: faixa.fim - faixa.inicio }, (_, i) => (
-                      <Link
-                        key={i}
-                        className="semana-vaga"
-                        style={{ top: `${i * 64}px` }}
-                        href={link({
-                          dia: d,
-                          novo: `${String(faixa.inicio + i).padStart(2, "0")}:00`,
-                        })}
-                        scroll={false}
-                        aria-label={`Marcar ${nomeDoDia(d)} às ${faixa.inicio + i}h`}
-                      />
-                    ))}
-                  {pistas(porDia.get(d) ?? []).map((a) => (
-                    <Link
-                      key={a.id}
-                      href={podeMarcar ? link({ dia: d, editar: a.id }) : link({ dia: d, ver: "dia" })}
-                      scroll={false}
-                      className={`marcacao situacao-${a.status} ${a.duracaoMin < 40 ? "curta" : ""}`}
-                      style={{
-                        top: `${(minutos(a.hora) - faixa.inicio * 60) * pxMin}px`,
-                        height: `${Math.max(a.duracaoMin * pxMin, 22)}px`,
-                        left: `calc(${(a.pista / a.pistas) * 100}% + 2px)`,
-                        width: `calc(${100 / a.pistas}% - 4px)`,
-                      }}
-                      title={`${a.hora} · ${a.nome}${a.servico ? ` · ${a.servico}` : ""} · ${NOME_STATUS[a.status]}`}
-                    >
-                      <span className="marcacao-hora">{a.hora}</span>
-                      <strong>{a.nome}</strong>
-                      {(a.servico || a.profissional) && <span className="marcacao-det">{[a.servico, a.profissional].filter(Boolean).join(" · ")}</span>}
-                    </Link>
-                  ))}
-                  {d === hj && agora >= faixa.inicio * 60 && agora <= faixa.fim * 60 && (
-                    <span
-                      className="semana-agora"
-                      style={{
-                        top: `${(agora - faixa.inicio * 60) * pxMin}px`,
-                      }}
-                      aria-hidden
-                    />
-                  )}
-                </div>
-              ))}
             </div>
-          </div>
+          )}
         </section>
+
+        <aside className="agenda2-lado">
+          <section className="cartao agenda2-proximo">
+            <h2>
+              {proximoRotulo} {atend}
+            </h2>
+            {proximoGeral ? (
+              <div className="agenda2-ficha" data-vivo={vivo(proximoGeral)}>
+                <p>
+                  <Icone nome="agenda" /> {proximoGeral.data === hj ? "" : `${diaCurto(proximoGeral.data)} · `}
+                  {proximoGeral.hora}–{fim(proximoGeral)}
+                </p>
+                <p>
+                  <Icone nome="pessoa" /> {proximoGeral.nome}
+                </p>
+                {proximoGeral.servico && (
+                  <p>
+                    <Icone nome="documento" /> {proximoGeral.servico}
+                  </p>
+                )}
+                <span className={`pilula situacao-${proximoGeral.status}`}>
+                  {proximoGeral.status === "confirmado" ? "✓ " : ""}
+                  {NOME_STATUS[proximoGeral.status]}
+                </span>
+                {podeMarcar && (
+                  <div className="agenda2-ficha-acoes">
+                    <Link className="botao" href={link({ dia: proximoGeral.data === hj ? undefined : proximoGeral.data, editar: proximoGeral.id })} scroll={false}>
+                      Ver {atend} <Icone nome="seta" />
+                    </Link>
+                    {proximoGeral.status === "marcado" && (
+                      <BotaoAcao acao={mudarStatusAgendamento.bind(null, empresaId, proximoGeral.id, "confirmado")} rotulo="Confirmar" sumir={false} />
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="vazio">Nada marcado nos próximos dias.</p>
+            )}
+          </section>
+          <section className="cartao agenda2-confirmar" id="a-confirmar">
+            <h2>A confirmar</h2>
+            {aConfirmar.length ? (
+              <ul>
+                {aConfirmar.map((a) => (
+                  <li key={a.id} data-vivo={vivo(a)}>
+                    <Link href={podeMarcar ? link({ dia: a.data === hj ? undefined : a.data, editar: a.id }) : link({ dia: a.data, ver: "dia" })} scroll={false}>
+                      <Icone nome="relogio" />
+                      <span>
+                        <strong>
+                          {a.data === hj ? "" : `${diaCurto(a.data)} · `}
+                          {a.hora}–{fim(a)}
+                        </strong>
+                        <span>{a.nome}</span>
+                        {a.servico && <small>{a.servico}</small>}
+                      </span>
+                      <span className="pilula situacao-marcado">A confirmar</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="vazio">Tudo confirmado.</p>
+            )}
+            <AoVivo pulso={pulsoDaEmpresa.bind(null, empresaId)} rotulo="Atualizado agora" />
+          </section>
+        </aside>
 
         {/* Dia: a lista grande, com os horários livres entre os marcados. No celular, é a tela principal. */}
         <section className="agenda-dia" aria-label={`${nomeDoDia(dia)}, ${diaMes(dia)}`}>

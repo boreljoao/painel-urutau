@@ -5,7 +5,8 @@ import { resumoDaLoja } from "@/lib/servidor/atendimento";
 import { contarParaConferir } from "@/lib/servidor/conferencia";
 import { exigirAcesso } from "@/servidor/acesso";
 import { corDoPerfil } from "@/servidor/marca";
-import { pacoteDe } from "@/pacotes/catalogo";
+import { NOME_SECAO, montarMenu } from "@/lib/navegacao";
+import { Icone } from "@/componentes/Icone";
 import { Mascote } from "@/componentes/Mascote";
 import { Menu, type ItemMenu } from "@/componentes/Menu";
 import { Opiniao } from "@/componentes/Opiniao";
@@ -16,7 +17,7 @@ import { enviarOpiniao } from "./opiniao-acoes";
 
 export default async function LayoutEmpresa({ children, params }: { children: React.ReactNode; params: Promise<{ empresaId: string }> }) {
   const { empresaId } = await params;
-  const { empresa, papel, comoAdmin, modulos, usuario } = await exigirAcesso(empresaId);
+  const { empresa, papel, comoAdmin, modulos, usuario, config } = await exigirAcesso(empresaId);
   const db = obterDb();
   const temWhatsapp = modulos.has("whatsapp");
   const [aConferir, atendimento] = await Promise.all([
@@ -25,20 +26,17 @@ export default async function LayoutEmpresa({ children, params }: { children: Re
   ]);
   const esperando = atendimento ? atendimento.aprovar + atendimento.comEquipe + atendimento.naoLidas : 0;
   const base = `/${empresaId}`;
-  const pacote = pacoteDe(empresa.perfil);
-  const temAgenda = pacote.abas.some((a) => a.rota === "agenda") && pode(papel, "ver_clientes");
-  const itens: ItemMenu[] = [
-    pode(papel, "ver_painel") && { href: base, nome: "Visão geral", icone: "inicio" as const },
-    pode(papel, "ver_lancamentos") && { href: `${base}/vendas`, nome: pacote.vocab.vendas, icone: "vendas" as const },
-    pode(papel, "ver_clientes") && { href: `${base}/clientes`, nome: pacote.vocab.clientes, icone: "clientes" as const },
-    temWhatsapp && pode(papel, "ver_clientes") && { href: `${base}/whatsapp`, nome: "WhatsApp", icone: "whatsapp" as const },
-    pode(papel, "lancar") && { href: `${base}/instagram`, nome: "Instagram", icone: "instagram" as const },
-    // Quem trabalha com horário marcado usa a agenda todo dia: no celular ela toma o lugar do financeiro na barra.
-    pode(papel, "ver_painel") && { href: `${base}/financeiro`, nome: "Financeiro", icone: "financeiro" as const, foraDaBarra: temAgenda },
-    // As abas do ramo: o que faz este painel ser de uma confeitaria, de uma revenda, de um consultório…
-    ...pacote.abas.map((a) => ({ href: a.rota ? `${base}/${a.rota}` : `${base}/n/${a.id}`, nome: a.titulo, icone: a.icone, doNegocio: true, emBreve: !a.rota, naBarra: a.rota === "agenda" })),
-    pode(papel, "gerenciar") && { href: `${base}/pacote`, nome: "Seu pacote", icone: "ajustes" as const, doNegocio: true },
-  ].filter(Boolean) as ItemMenu[];
+  const itens: ItemMenu[] = montarMenu({ perfil: empresa.perfil, papel, modulos, config }).map((i) => ({
+    href: i.rota ? `${base}/${i.rota}` : base,
+    nome: i.nome,
+    icone: i.icone,
+    secao: NOME_SECAO[i.secao],
+    emBreve: i.emBreve,
+    doNegocio: i.doNegocio,
+    naBarra: i.naBarra,
+    foraDaBarra: i.foraDaBarra,
+  }));
+  const ajuda = `https://wa.me/5521993689481?text=${encodeURIComponent(`Oi! Preciso de ajuda com o painel da ${empresa.nome}.`)}`;
   const marca = corDoPerfil(empresa.perfil);
   const visitante = ehDemo(usuario.email);
 
@@ -51,6 +49,16 @@ export default async function LayoutEmpresa({ children, params }: { children: Re
         </Link>
         <Menu itens={itens} selos={{ [`${base}/whatsapp`]: esperando, [`${base}/vendas`]: aConferir }} />
         <div className="lado-pe">
+          <nav className="lado-atalhos" aria-label="Conta">
+            {pode(papel, "gerenciar") && (
+              <Link href={`${base}/pacote`}>
+                <Icone nome="ajustes" /> Seu pacote
+              </Link>
+            )}
+            <a href={ajuda} target="_blank" rel="noreferrer">
+              <Icone nome="ajuda" /> Ajuda e suporte
+            </a>
+          </nav>
           {comoAdmin && <p className="aviso-equipe">Você está vendo como equipe Urutau.</p>}
           <div className="pessoa">
             <span className="avatar" style={{ background: tomDe(usuario.nome) }}>

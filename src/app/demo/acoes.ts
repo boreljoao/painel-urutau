@@ -20,5 +20,7 @@ export async function abrirDemo(perfil: Perfil) {
   const { usuarioId, empresaId } = await criarDemo(perfil);
   await iniciarSessao(usuarioId);
   // No começo do mês os números ainda são poucos: o exemplo abre no último mês fechado.
+  // Consultório abre na agenda; os outros ramos, na Visão geral.
+  if (perfil === "consultorio") redirect(`/${empresaId}/agenda`);
   redirect(Number(hoje().slice(8)) < 15 ? `/${empresaId}?mes=${somarMeses(mesAtual(), -1)}` : `/${empresaId}`);
 }

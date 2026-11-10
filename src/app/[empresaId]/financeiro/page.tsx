@@ -36,7 +36,7 @@ const VER = [
 ] as const;
 const NOME_REGIME = { mei: "MEI", simples: "Simples Nacional", presumido: "Lucro Presumido", real: "Lucro Real" } as const;
 
-export default async function Financeiro({ params, searchParams }: { params: Promise<{ empresaId: string }>; searchParams: Promise<{ mes?: string; ver?: string; editar?: string; salvo?: string; excluida?: string }> }) {
+export default async function Financeiro({ params, searchParams }: { params: Promise<{ empresaId: string }>; searchParams: Promise<{ mes?: string; ver?: string; grupo?: string; editar?: string; salvo?: string; excluida?: string }> }) {
   const { empresaId } = await params;
   const sp = await searchParams;
   const ctx = await exigirAcesso(empresaId, "ver_painel");
@@ -44,6 +44,8 @@ export default async function Financeiro({ params, searchParams }: { params: Pro
   const atual = mesAtual();
   const mes = mesValido(sp.mes) && sp.mes <= atual ? sp.mes : atual;
   const ver = VER.find((v) => v.id === sp.ver)?.id ?? "pagar";
+  // Vindo de um alerta da Visão geral: só o grupo pedido (atrasadas, vencem hoje).
+  const soGrupo = GRUPOS.find((x) => x.g === sp.grupo);
   const db = obterDb();
   const hojeData = hoje();
   await prepararEmpresa(db, empresa, mes, atual);
@@ -120,7 +122,7 @@ export default async function Financeiro({ params, searchParams }: { params: Pro
       )}
 
       <Entrada className="grade">
-        <section className="cartao c3">
+        <section id="caixa" className="cartao c3">
           <h2>A pagar em 30 dias</h2>
           <Contador className="grande" valor={soma(contas, "pagar")} />
           <p className="nota">Despesas, guias, folha e parcelas em aberto.</p>
@@ -141,7 +143,7 @@ export default async function Financeiro({ params, searchParams }: { params: Pro
           <p className="nota">{NOME_REGIME[empresa.regime]} · confirme com o seu contador.</p>
         </section>
 
-        <section className="cartao c7">
+        <section id="contas" className="cartao c7">
           <header className="cartao-topo">
             <h2>Contas</h2>
             <nav className="alternar" aria-label="Mostrar">
@@ -152,7 +154,15 @@ export default async function Financeiro({ params, searchParams }: { params: Pro
               ))}
             </nav>
           </header>
-          {GRUPOS.map(({ g, titulo }) => {
+          {soGrupo && (
+            <p className="nota filtro-ativo">
+              Mostrando só <strong>{soGrupo.titulo.toLowerCase()}</strong> ·{" "}
+              <Link className="link" href={endereco(base, filtros)} scroll={false}>
+                ver todas
+              </Link>
+            </p>
+          )}
+          {GRUPOS.filter(({ g }) => !soGrupo || soGrupo.g === g).map(({ g, titulo }) => {
             const lista = contas.filter((c) => grupoDe(c.data, hojeData) === g && (ver === "tudo" || c.sentido === ver));
             if (!lista.length) return null;
             return (
@@ -200,7 +210,7 @@ export default async function Financeiro({ params, searchParams }: { params: Pro
           )}
         </section>
 
-        <section className="cartao c6">
+        <section id="impostos" className="cartao c6">
           <h2>Impostos de {nomeDoMes(mes)}</h2>
           {imposto.regime === "simples" ? (
             <ul className="lista-simples">
@@ -278,7 +288,7 @@ export default async function Financeiro({ params, searchParams }: { params: Pro
           )}
         </section>
 
-        <section className="cartao c12">
+        <section id="despesas" className="cartao c12">
           <header className="cartao-topo">
             <h2>Despesas lançadas em {nomeDoMes(mes)}</h2>
             <span className="nota">{despesas.length ? `${despesas.length} ${despesas.length === 1 ? "lançamento" : "lançamentos"}` : ""}</span>

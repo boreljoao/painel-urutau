@@ -87,11 +87,27 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
   const ctx = await exigirPermissao(empresaId, "lancar");
   const valores = formParaObjeto(fd);
   if (!agendaDoPacote(ctx.empresa.perfil)) return { erros: { _: "A agenda não faz parte do pacote desta empresa." }, valores };
-  const r = esquemaAgendamento.safeParse(valores);
+  const bloquear = !id && valores.bloquear === "1";
+  const r = esquemaAgendamento.safeParse(bloquear ? { ...valores, nome: String(valores.nome ?? "").trim() || "Horário bloqueado", telefone: "", valor: "" } : valores);
   if (!r.success) return { erros: errosPorCampo(r.error), valores };
   const d = r.data;
   if (id && !(await agendamentoDaEmpresa(empresaId, id))) return { erros: { _: "Este horário não existe mais." }, valores };
 
+  {
+    const dia = await listarAgenda(empresaId, d.data, somarDias(d.data, 1));
+    const bate = choques({ id: id ?? undefined, data: d.data, hora: d.hora, duracaoMin: d.duracao, profissional: d.profissional, sala: d.sala }, dia);
+    // Bloqueio e o mesmo profissional não admitem "marcar mesmo assim": ninguém atende dois ao mesmo tempo.
+    const duro = bate.find(
+      (b) => b.status === "bloqueado" || bloquear || (!!d.profissional && !!b.profissional && b.profissional.toLowerCase() === d.profissional.toLowerCase()),
+    );
+    if (duro) {
+      const com = duro.profissional ? ` com ${duro.profissional}` : "";
+      return {
+        erros: { _: duro.status === "bloqueado" ? `Esse horário está bloqueado (${duro.nome}, às ${duro.hora}). Escolha outro.` : `${duro.nome} já está marcado às ${duro.hora}${com}. Escolha outro horário.` },
+        valores,
+      };
+    }
+  }
   if (!d.forcar) {
     const dia = await listarAgenda(empresaId, d.data, somarDias(d.data, 1));
     const bate = choques({ id: id ?? undefined, data: d.data, hora: d.hora, duracaoMin: d.duracao, profissional: d.profissional, sala: d.sala }, dia);
@@ -102,7 +118,7 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
     }
   }
 
-  const clienteId = await resolverCliente(empresaId, ctx.usuario.id, d);
+  const clienteId = bloquear ? null : await resolverCliente(empresaId, ctx.usuario.id, d);
   const dados = {
     data: d.data,
     hora: d.hora,
@@ -119,11 +135,14 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
   if (id) {
     await db.update(agendamentos).set({ ...dados, atualizadoEm: new Date() }).where(and(eq(agendamentos.id, id), eq(agendamentos.empresaId, empresaId)));
   } else {
-    const [novo] = await db.insert(agendamentos).values({ ...dados, empresaId, criadoPor: ctx.usuario.id }).returning({ id: agendamentos.id });
+    const [novo] = await db
+      .insert(agendamentos)
+      .values({ ...dados, ...(bloquear ? { status: "bloqueado" as const, clienteId: null, valorCentavos: null } : {}), empresaId, criadoPor: ctx.usuario.id })
+      .returning({ id: agendamentos.id });
     await registrarAuditoria(db, { empresaId, usuarioId: ctx.usuario.id, ator: "usuario", acao: "agenda.marcar", entidade: "agendamento", entidadeId: novo.id });
   }
   revalidar(empresaId);
-  return { ok: id ? "Horário alterado." : "Horário marcado.", valores: { data: d.data } };
+  return { ok: id ? "Horário alterado." : bloquear ? "Horário bloqueado." : "Horário marcado.", valores: { data: d.data } };
 }
 
 const statusValido = z.enum(statusAgendamentoEnum.enumValues);

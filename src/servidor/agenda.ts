@@ -18,6 +18,7 @@ const colunas = {
   status: agendamentos.status,
   observacao: agendamentos.observacao,
   vendaId: agendamentos.vendaId,
+  atualizadoEm: agendamentos.atualizadoEm,
   telefone: clientes.telefone,
 };
 

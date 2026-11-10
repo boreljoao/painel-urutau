@@ -17,6 +17,8 @@ export interface ConfigAgenda {
   atendimento: string;
   /** Sugestões para o campo "o que vai acontecer". */
   servicos: string[];
+  /** Como o campo "o que vai acontecer" se chama (Procedimento, Tipo de sessão…). */
+  rotuloServico?: string;
 }
 
 export const AGENDA_PADRAO: ConfigAgenda = { inicio: 8, fim: 19, duracao: 60, pessoa: "Cliente", atendimento: "Horário", servicos: [] };
@@ -37,6 +39,7 @@ export const NOME_STATUS: Record<StatusAgendamento, string> = {
   atendido: "Atendido",
   faltou: "Faltou",
   cancelado: "Cancelado",
+  bloqueado: "Bloqueado",
 };
 
 /** Cancelado não ocupa o horário. */
