@@ -3,54 +3,140 @@
 import { and, eq } from "drizzle-orm";
 import { after } from "next/server";
 import { obterDb } from "@/db";
-import { postsInstagram } from "@/db/schema";
+import { type ArquivoPostInstagram, type FormatoPostInstagram, postsInstagram } from "@/db/schema";
+import { analisar } from "@/lib/instagram/analise";
 import { exigirPermissao } from "@/servidor/acesso";
 import {
+  type DadosPost,
   ErroInstagram,
+  type Quando,
   canaisDoBuffer,
   contaDaEmpresa,
   desligarConta,
   listarPosts,
-  novoPost,
+  materiaisDoEnvio,
+  planejarSemana,
+  postDaEmpresa,
   processarCriacao,
   processarEnvio,
   salvarConta,
+  salvarRascunho,
+  sincronizar,
 } from "@/servidor/instagram";
 
-/** Os posts da empresa, para a tela ao vivo (o celular e o notebook perguntam a cada 2 segundos). */
+const FORMATOS: FormatoPostInstagram[] = ["post", "carrossel", "reel", "story"];
+
+/** Os posts da empresa para as telas ao vivo; de quebra pergunta ao Buffer o que já saiu. */
 export async function postsAoVivo(empresaId: string) {
   await exigirPermissao(empresaId, "lancar");
-  return listarPosts(obterDb(), empresaId);
+  const db = obterDb();
+  after(() => sincronizar(db, empresaId).catch((e) => console.error("instagram: sincronia", e)));
+  return listarPosts(db, empresaId);
 }
 
-export async function criarPost(empresaId: string, tema: string): Promise<{ erro?: string; id?: string }> {
+export interface FormularioPost {
+  tema: string;
+  objetivo: string;
+  orientacoes: string;
+  formato: FormatoPostInstagram;
+  arquivos: ArquivoPostInstagram[];
+  modo: "revisar" | "automatico";
+  /** ISO com fuso, ou vazio para a fila do Buffer. */
+  agendadoPara: string;
+}
+
+function validar(f: FormularioPost): DadosPost | string {
+  const tema = f.tema.trim();
+  if (tema.length < 3) return "Conte em poucas palavras sobre o que é o post.";
+  if (tema.length > 600 || f.orientacoes.length > 1500) return "Texto longo demais. Resuma um pouco.";
+  if (!FORMATOS.includes(f.formato)) return "Formato inválido.";
+  if (f.arquivos.length > 12) return "No máximo 12 arquivos por post.";
+  const arquivos = f.arquivos.filter((a) => /^https:\/\/[^/]+\.blob\.vercel-storage\.com\//.test(a.url) || a.tipo === "link");
+  if (f.formato === "reel" && !arquivos.some((a) => a.tipo === "video")) return "Reel precisa de um vídeo. Envie o vídeo nos materiais.";
+  const agendadoPara = f.agendadoPara ? new Date(f.agendadoPara) : null;
+  if (agendadoPara && Number.isNaN(agendadoPara.getTime())) return "Data inválida.";
+  return { tema, objetivo: f.objetivo || null, orientacoes: f.orientacoes.trim() || null, formato: f.formato, arquivos, modo: f.modo, agendadoPara };
+}
+
+export async function salvarRascunhoAcao(empresaId: string, f: FormularioPost, postId?: string): Promise<{ erro?: string; id?: string }> {
   const ctx = await exigirPermissao(empresaId, "lancar");
-  const assunto = tema.trim();
-  if (assunto.length < 3) return { erro: "Conte em poucas palavras sobre o que é o post." };
-  if (assunto.length > 600) return { erro: "Resuma o assunto em até 600 caracteres." };
+  const dados = validar({ ...f, tema: f.tema || "Rascunho" });
+  if (typeof dados === "string") return { erro: dados };
+  return { id: await salvarRascunho(obterDb(), empresaId, ctx.usuario.id, dados, postId) };
+}
+
+/** Salva o que está no formulário e manda a IA escrever. */
+export async function gerarPost(empresaId: string, f: FormularioPost, postId?: string): Promise<{ erro?: string; id?: string }> {
+  const ctx = await exigirPermissao(empresaId, "lancar");
+  const dados = validar(f);
+  if (typeof dados === "string") return { erro: dados };
   const db = obterDb();
-  const id = await novoPost(db, empresaId, assunto, ctx.usuario.id);
+  const id = await salvarRascunho(db, empresaId, ctx.usuario.id, dados, postId);
+  await db.update(postsInstagram).set({ situacao: "criando", erro: null, conteudo: null, analise: null, atualizadoEm: new Date() }).where(eq(postsInstagram.id, id));
   after(() => processarCriacao(db, id));
   return { id };
 }
 
-export async function enviarPost(empresaId: string, postId: string, agora: boolean): Promise<{ erro?: string }> {
+/** Quick start (tela antiga e ações rápidas): só o assunto. */
+export async function criarPost(empresaId: string, tema: string): Promise<{ erro?: string; id?: string }> {
+  return gerarPost(empresaId, { tema, objetivo: "", orientacoes: "", formato: "post", arquivos: [], modo: "revisar", agendadoPara: "" });
+}
+
+/** O dono mexeu no texto: grava e confere de novo. */
+export async function editarTexto(empresaId: string, postId: string, gancho: string, legenda: string): Promise<{ erro?: string }> {
   await exigirPermissao(empresaId, "lancar");
   const db = obterDb();
-  if (!(await contaDaEmpresa(db, empresaId))) return { erro: "Ligue o Buffer da empresa antes de enviar." };
-  const [mudou] = await db
-    .update(postsInstagram)
-    .set({ situacao: "enviando", envio: agora ? "agora" : "fila", erro: null, atualizadoEm: new Date() })
-    .where(and(eq(postsInstagram.id, postId), eq(postsInstagram.empresaId, empresaId)))
-    .returning({ conteudo: postsInstagram.conteudo });
-  if (!mudou?.conteudo) return { erro: "Este post ainda não está pronto." };
-  after(() => processarEnvio(db, empresaId, postId, agora));
+  const post = await postDaEmpresa(db, empresaId, postId);
+  if (!post?.conteudo) return { erro: "Este post ainda não tem texto." };
+  if (legenda.length > 2200) return { erro: "A legenda passa de 2.200 caracteres." };
+  const hashtags = [...legenda.matchAll(/#([\p{L}\p{N}_]+)/gu)].map((m) => m[1]);
+  const corpo = legenda.replace(/(?:^|\s)#[\p{L}\p{N}_]+/gu, "").trim();
+  const { conteudo, analise } = analisar({ ...post.conteudo, gancho: gancho.trim() || post.conteudo.gancho, legenda: corpo, hashtags });
+  await db.update(postsInstagram).set({ conteudo, analise, atualizadoEm: new Date() }).where(eq(postsInstagram.id, postId));
+  return {};
+}
+
+export async function enviarPost(empresaId: string, postId: string, quando: { tipo: "agora" | "fila" } | { tipo: "data"; em: string }): Promise<{ erro?: string }> {
+  await exigirPermissao(empresaId, "lancar");
+  const db = obterDb();
+  if (!(await contaDaEmpresa(db, empresaId))) return { erro: "Ligue o Instagram da empresa (Buffer) antes de enviar." };
+  const post = await postDaEmpresa(db, empresaId, postId);
+  if (!post?.conteudo) return { erro: "Este post ainda não está pronto." };
+  if (post.conteudo.legenda.includes("{{")) return { erro: "A legenda ainda tem um dado para preencher." };
+  try {
+    materiaisDoEnvio(post);
+  } catch (e) {
+    return { erro: e instanceof ErroInstagram ? e.message : "Material inválido." };
+  }
+  let alvo: Quando;
+  if (quando.tipo === "data") {
+    const em = new Date(quando.em);
+    if (Number.isNaN(em.getTime()) || em.getTime() < Date.now() + 5 * 60_000) return { erro: "Escolha uma data e hora pelo menos 5 minutos à frente." };
+    alvo = { tipo: "data", em };
+  } else alvo = { tipo: quando.tipo };
+  await db.update(postsInstagram).set({ situacao: "enviando", envio: alvo.tipo, erro: null, atualizadoEm: new Date() }).where(eq(postsInstagram.id, postId));
+  after(() => processarEnvio(db, empresaId, postId, alvo));
   return {};
 }
 
 export async function excluirPost(empresaId: string, postId: string) {
   await exigirPermissao(empresaId, "lancar");
   await obterDb().delete(postsInstagram).where(and(eq(postsInstagram.id, postId), eq(postsInstagram.empresaId, empresaId)));
+}
+
+export async function planejarSemanaAcao(empresaId: string, contexto: string): Promise<{ erro?: string; quantos?: number }> {
+  const ctx = await exigirPermissao(empresaId, "lancar");
+  const db = obterDb();
+  const hoje = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  try {
+    const ids = await planejarSemana(db, empresaId, ctx.usuario.id, contexto.slice(0, 1500), hoje);
+    after(async () => {
+      for (const id of ids) await processarCriacao(db, id);
+    });
+    return { quantos: ids.length };
+  } catch (e) {
+    return { erro: e instanceof ErroInstagram ? e.message : "A IA não conseguiu planejar agora. Tente de novo." };
+  }
 }
 
 /** Passo 1 da ligação: confere a chave e devolve os perfis de Instagram dela. */
