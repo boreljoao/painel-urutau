@@ -434,15 +434,15 @@ function PassoConteudo({ empresaId, post, voltar, seguir, atualizar }: { empresa
   const [legenda, setLegenda] = useState(c?.legenda ?? "");
   const [erro, setErro] = useState<string>();
   const [pendente, iniciar] = useTransition();
-  const editado = !!c && (gancho !== c.gancho || legenda !== c.legenda);
+  // Enquanto a pessoa não mexe, o campo acompanha o texto que chega da IA (ou de outra tela).
+  const [mexeu, setMexeu] = useState(false);
+  const editado = mexeu && !!c && (gancho !== c.gancho || legenda !== c.legenda);
   useEffect(() => {
-    if (c && !editado) {
+    if (c && !mexeu) {
       setGancho(c.gancho);
       setLegenda(c.legenda);
     }
-    // só quando chega texto novo da IA
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [c?.legenda, c?.gancho]);
+  }, [c, mexeu]);
 
   return (
     <section className="cartao ig-conteudo">
@@ -454,11 +454,24 @@ function PassoConteudo({ empresaId, post, voltar, seguir, atualizar }: { empresa
         <>
           <label className="campo">
             <span>Gancho (primeira frase)</span>
-            <input value={gancho} onChange={(e) => setGancho(e.target.value)} />
+            <input
+              value={gancho}
+              onChange={(e) => {
+                setMexeu(true);
+                setGancho(e.target.value);
+              }}
+            />
           </label>
           <label className="campo">
             <span>Legenda completa</span>
-            <textarea rows={10} value={legenda} onChange={(e) => setLegenda(e.target.value)} />
+            <textarea
+              rows={10}
+              value={legenda}
+              onChange={(e) => {
+                setMexeu(true);
+                setLegenda(e.target.value);
+              }}
+            />
             <small className="nota">
               {legenda.length}/2.200 · as primeiras {FEED_VISIVEL} letras aparecem antes do “mais”
             </small>
@@ -524,7 +537,13 @@ function Previa({ empresaNome, conta, form, post }: { empresaNome: string; conta
   const artes = post?.conteudo ? [`/arte/${post.id}.png?v=${post.atualizadoEm}`, ...(form.formato === "carrossel" && fotos.length < 2 ? (post.conteudo.slides ?? []).map((_, i) => `/arte/${post.id}-${i + 1}.png?v=${post.atualizadoEm}`) : [])] : [];
   const imagens = form.formato === "carrossel" ? (fotos.length >= 2 ? fotos : artes) : fotos.length ? [fotos[0]] : artes.slice(0, 1);
   const atual = imagens[Math.min(slide, imagens.length - 1)];
-  const usuario = conta?.canalNome ?? empresaNome.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const usuario =
+    conta?.canalNome ??
+    empresaNome
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
   const legenda = post?.conteudo?.legenda ?? (form.tema || "A legenda aparece aqui depois que a IA escrever.");
 
   return (
