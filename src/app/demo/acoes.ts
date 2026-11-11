@@ -5,10 +5,13 @@ import type { Perfil } from "@/db/schema";
 import { hoje, mesAtual, somarMeses } from "@/lib/datas";
 import { encerrarSessao, iniciarSessao, obterUsuarioAtual } from "@/lib/servidor/auth";
 import { RAMOS_DEMO, criarDemo, limparDemos } from "@/servidor/demo";
+import { freio, freioPorIp } from "@/servidor/freio";
 
 /** Abre um painel de exemplo do ramo: conta de visitante nova, com dados de alguns meses. */
 export async function abrirDemo(perfil: Perfil) {
   if (!RAMOS_DEMO.includes(perfil)) redirect("/demo");
+  // Cada demonstração cria conta e empresa de verdade no banco: freio por IP e teto do dia.
+  if (!(await freioPorIp("demo", 8, 60 * 60)) || !(await freio("demo:total", 400, 24 * 60 * 60))) redirect("/demo?limite=1");
   // Quem estava numa conta sai dela: a demonstração é outra conta.
   if (await obterUsuarioAtual()) await encerrarSessao();
   try {

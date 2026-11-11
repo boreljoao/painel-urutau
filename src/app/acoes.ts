@@ -10,11 +10,17 @@ import { ehDemo } from "@/lib/demo";
 import { VERSAO_TERMOS } from "@/lib/legal";
 import { conferirSenha, encerrarSessao, hashSenha, iniciarSessao } from "@/lib/servidor/auth";
 import { errosPorCampo, formParaObjeto } from "@/lib/validacao";
+import { freio, freioPorIp } from "@/servidor/freio";
 
 /** Mesmas contas do app urutau: quem é dono ou equipe de uma empresa entra aqui com a mesma senha. */
 export async function entrar(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
   const valores = formParaObjeto(fd);
-  const email = (valores.email ?? "").trim().toLowerCase();
+  const email = (valores.email ?? "").trim().toLowerCase().slice(0, 200);
+  const senha = valores.senha ?? "";
+  // Tamanho antes do Argon2 (senha gigante custa CPU) e freio por IP e por conta.
+  if (senha.length > 200) return { erros: { _: "E-mail ou senha incorretos." }, valores: { email } };
+  if (!(await freioPorIp("login", 30, 15 * 60)) || !(await freio(`login:conta:${email}`, 10, 15 * 60)))
+    return { erros: { _: "Muitas tentativas seguidas. Espere 15 minutos e tente de novo." }, valores: { email } };
   let u;
   try {
     [u] = await obterDb().select().from(usuarios).where(eq(usuarios.email, email)).limit(1);
@@ -23,7 +29,7 @@ export async function entrar(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
     return { erros: { _: "Não deu para acessar os dados agora. Tente de novo em instantes." }, valores: { email } };
   }
   // Mesma mensagem para e-mail inexistente e senha errada.
-  if (!u || !(await conferirSenha(u.senhaHash, valores.senha ?? ""))) {
+  if (!u || !(await conferirSenha(u.senhaHash, senha))) {
     return { erros: { _: "E-mail ou senha incorretos." }, valores: { email } };
   }
   await iniciarSessao(u.id);
@@ -52,6 +58,7 @@ export async function cadastrar(_: EstadoForm, fd: FormData): Promise<EstadoForm
   if (!r.success) return { erros: errosPorCampo(r.error), valores: devolver };
   const { nome, email, senha } = r.data;
   if (ehDemo(email)) return { erros: { email: "E-mail inválido" }, valores: devolver };
+  if (!(await freioPorIp("cadastro", 5, 60 * 60))) return { erros: { _: "Muitas contas criadas daqui agora. Tente de novo mais tarde." }, valores: devolver };
   const db = obterDb();
   let id: string;
   try {

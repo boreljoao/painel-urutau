@@ -1,6 +1,6 @@
 import "server-only";
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
-import { obterDb } from "@/db";
+import { type BancoDeDados, obterDb } from "@/db";
 import { agendamentos, empresaPainel, empresas } from "@/db/schema";
 import { type Data, diaDaSemana, hoje, somarDias } from "@/lib/datas";
 import { agendaDoPacote } from "@/pacotes/catalogo";
@@ -27,8 +27,8 @@ export async function empresaPorSlug(slug: string) {
 
 export type EmpresaPublica = NonNullable<Awaited<ReturnType<typeof empresaPorSlug>>>;
 
-const ocupados = (empresaId: string, inicio: Data, fim: Data) =>
-  obterDb()
+const ocupados = (empresaId: string, inicio: Data, fim: Data, db: Pick<BancoDeDados, "select"> = obterDb()) =>
+  db
     .select({ id: agendamentos.id, data: agendamentos.data, hora: agendamentos.hora, duracaoMin: agendamentos.duracaoMin, status: agendamentos.status, profissional: agendamentos.profissional, sala: agendamentos.sala })
     .from(agendamentos)
     .where(and(eq(agendamentos.empresaId, empresaId), isNull(agendamentos.excluidoEm), gte(agendamentos.data, inicio), lt(agendamentos.data, fim)));
@@ -57,6 +57,15 @@ export async function horarioLivre(e: EmpresaPublica, data: Data, hora: string, 
   const oferecidos = await horariosOnline(e, ignorarId);
   if (!oferecidos.some((d) => d.data === data && d.horas.includes(hora))) return false;
   const dia = (await ocupados(e.empresa.id, data, somarDias(data, 1))).filter((a) => a.id !== ignorarId) as ItemAgenda[];
+  return choques({ data, hora, duracaoMin: e.cfg.duracao, profissional: "", sala: "" }, dia).length === 0;
+}
+
+/**
+ * Dentro da fila do dia (travarDiaDaAgenda): confere só se o horário ainda não bate com outro,
+ * lendo pela mesma conexão da transação (não pega outra do pool enquanto espera).
+ */
+export async function semChoqueNaTransacao(db: Pick<BancoDeDados, "select">, e: EmpresaPublica, data: Data, hora: string, ignorarId?: string) {
+  const dia = (await ocupados(e.empresa.id, data, somarDias(data, 1), db)).filter((a) => a.id !== ignorarId) as ItemAgenda[];
   return choques({ data, hora, duracaoMin: e.cfg.duracao, profissional: "", sala: "" }, dia).length === 0;
 }
 

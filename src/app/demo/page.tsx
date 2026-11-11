@@ -10,7 +10,8 @@ import { RodapeLegal } from "../legal";
 export const metadata = { title: "Painel de exemplo" };
 export const dynamic = "force-dynamic";
 
-export default async function Demo() {
+export default async function Demo({ searchParams }: { searchParams: Promise<{ limite?: string }> }) {
+  const { limite } = await searchParams;
   const usuario = await obterUsuarioAtual();
   const emOutraConta = usuario && !ehDemo(usuario.email);
   return (
@@ -18,6 +19,11 @@ export default async function Demo() {
       <section className="entrar-cartao escolher" aria-labelledby="demo-titulo">
         <h1 id="demo-titulo">Veja um painel de exemplo</h1>
         <p className="nota">Escolha o ramo. Abre uma empresa inventada com alguns meses de vendas, contas e clientes. Mexa à vontade: tudo some em um dia.</p>
+        {limite && (
+          <p className="nota aviso-demo" role="alert">
+            Muitos exemplos abertos agora. Espere um pouco e tente de novo, ou crie a sua conta.
+          </p>
+        )}
         {emOutraConta && <p className="nota aviso-demo">Você vai sair da conta de {usuario.nome.split(" ")[0]} para abrir o exemplo.</p>}
         <ul className="lista-empresas">
           {RAMOS_DEMO.map((perfil) => {

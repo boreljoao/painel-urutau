@@ -290,7 +290,20 @@ export function CartaoPost({ post, empresaId, ligado, atualizar }: { post: Post;
           </a>
         )}
         {!trabalhando && (
-          <button type="button" className="link ig-excluir" disabled={pendente} onClick={() => iniciar(async () => { await excluirPost(empresaId, post.id); atualizar(); })}>
+          <button type="button" className="link ig-excluir" disabled={pendente} onClick={() => {
+              const aviso =
+                post.situacao === "agendado"
+                  ? "Cancelar o agendamento no Buffer e apagar este post?"
+                  : post.situacao === "publicado" || post.situacao === "enviado"
+                    ? "Apagar daqui? O post continua no Instagram: para tirar de lá, apague pelo app do Instagram."
+                    : "Apagar este post?";
+              if (!window.confirm(aviso)) return;
+              iniciar(async () => {
+                const r = await excluirPost(empresaId, post.id);
+                if (r.erro) window.alert(r.erro);
+                atualizar();
+              });
+            }}>
             Excluir
           </button>
         )}

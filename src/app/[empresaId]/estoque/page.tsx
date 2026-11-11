@@ -3,7 +3,7 @@ import { obterDb } from "@/db";
 import { hoje } from "@/lib/datas";
 import { NOME_SITUACAO, formatarQuantidade, margem } from "@/lib/estoque";
 import { pode } from "@/lib/permissoes";
-import { type FiltroProdutos, categoriasDeProdutos, listarProdutos, obterProduto, painelEstoque } from "@/lib/servidor/estoque";
+import { type FiltroProdutos, PRODUTOS_POR_PAGINA, categoriasDeProdutos, contarProdutos, listarProdutos, obterProduto, painelEstoque } from "@/lib/servidor/estoque";
 import { exigirAcesso } from "@/servidor/acesso";
 import { entradaAcao, perdaAcao, salvarProdutoAcao } from "@/pacotes/estoque-acoes";
 import { JanelaProduto } from "@/pacotes/estoque-janela";
@@ -26,22 +26,26 @@ const FILTROS: { id: FiltroProdutos; nome: string }[] = [
 const emReais = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 const qtdCampo = (mil: number) => String(mil / 1000).replace(".", ",");
 
-export default async function Estoque({ params, searchParams }: { params: Promise<{ empresaId: string }>; searchParams: Promise<{ ver?: string; q?: string; novo?: string; editar?: string }> }) {
+export default async function Estoque({ params, searchParams }: { params: Promise<{ empresaId: string }>; searchParams: Promise<{ ver?: string; q?: string; novo?: string; editar?: string; pagina?: string }> }) {
   const { empresaId } = await params;
   const sp = await searchParams;
   const ctx = await exigirAcesso(empresaId, "ver_lancamentos");
   const podeLancar = pode(ctx.papel, "lancar");
   const filtro: FiltroProdutos = FILTROS.some((f) => f.id === sp.ver) ? (sp.ver as FiltroProdutos) : "todos";
   const db = obterDb();
-  const [lista, resumo, categorias, editando] = await Promise.all([
-    listarProdutos(db, empresaId, { busca: sp.q, filtro }),
+  const pagina = Math.max(1, Math.min(10_000, Number.parseInt(sp.pagina ?? "1", 10) || 1));
+  const [lista, total, resumo, categorias, editando] = await Promise.all([
+    listarProdutos(db, empresaId, { busca: sp.q, filtro, pagina }),
+    contarProdutos(db, empresaId, { busca: sp.q, filtro }),
     painelEstoque(db, empresaId),
     categoriasDeProdutos(db, empresaId),
     sp.editar && podeLancar ? obterProduto(db, empresaId, sp.editar) : null,
   ]);
   const base = `/${empresaId}/estoque`;
   const link = (extra: Record<string, string | undefined>) => {
-    const q = new URLSearchParams(Object.entries({ ver: filtro === "todos" ? undefined : filtro, q: sp.q, ...extra }).filter((e): e is [string, string] => !!e[1]));
+    const q = new URLSearchParams(
+      Object.entries({ ver: filtro === "todos" ? undefined : filtro, q: sp.q, pagina: pagina > 1 ? String(pagina) : undefined, ...extra }).filter((e): e is [string, string] => !!e[1]),
+    );
     return q.size ? `${base}?${q}` : base;
   };
   const fechar = link({});
@@ -105,10 +109,13 @@ export default async function Estoque({ params, searchParams }: { params: Promis
       </header>
 
       <section className="patio-resumo" aria-label="Resumo do estoque">
-        <div className={`cartao ${resumo.repor ? "alerta" : ""}`}>
+        <Link href={link({ ver: "repor", pagina: undefined, q: undefined })} className={`cartao ${resumo.repor ? "alerta" : ""}`}>
           <span>Para repor</span>
           <strong>{resumo.repor}</strong>
-        </div>
+          <small>
+            {resumo.abaixoMinimo} abaixo do mínimo · {resumo.semEstoque} {resumo.semEstoque === 1 ? "zerado" : "zerados"}
+          </small>
+        </Link>
         <div className={`cartao ${resumo.semEstoque ? "alerta" : ""}`}>
           <span>Sem estoque</span>
           <strong>{resumo.semEstoque}</strong>
@@ -130,8 +137,10 @@ export default async function Estoque({ params, searchParams }: { params: Promis
       <div className="estoque-barra">
         <nav className="agenda2-chips" aria-label="Filtrar">
           {FILTROS.map((f) => (
-            <Link key={f.id} href={link({ ver: f.id === "todos" ? undefined : f.id })} className={`agenda2-chip${filtro === f.id ? " ativo" : ""}`}>
+            <Link key={f.id} href={link({ ver: f.id === "todos" ? undefined : f.id, pagina: undefined })} className={`agenda2-chip${filtro === f.id ? " ativo" : ""}`}>
               {f.nome}
+              {f.id === "repor" && resumo.repor ? <span className="chip-conta">{resumo.repor}</span> : null}
+              {f.id === "sem_estoque" && resumo.semEstoque ? <span className="chip-conta">{resumo.semEstoque}</span> : null}
             </Link>
           ))}
         </nav>
@@ -185,6 +194,23 @@ export default async function Estoque({ params, searchParams }: { params: Promis
                 })}
               </tbody>
             </table>
+            {total > lista.length && (
+              <nav className="estoque-paginas" aria-label="Páginas">
+                <span>
+                  Mostrando {(pagina - 1) * PRODUTOS_POR_PAGINA + 1}–{(pagina - 1) * PRODUTOS_POR_PAGINA + lista.length} de {total.toLocaleString("pt-BR")}
+                </span>
+                {pagina > 1 && (
+                  <Link className="botao-claro" href={link({ pagina: pagina > 2 ? String(pagina - 1) : undefined })}>
+                    Anteriores
+                  </Link>
+                )}
+                {pagina * PRODUTOS_POR_PAGINA < total && (
+                  <Link className="botao-claro" href={link({ pagina: String(pagina + 1) })}>
+                    Próximos
+                  </Link>
+                )}
+              </nav>
+            )}
           </div>
         ) : (
           <div className="vazio-grande">

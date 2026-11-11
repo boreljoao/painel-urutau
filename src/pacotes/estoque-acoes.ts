@@ -8,7 +8,7 @@ import { lerReais } from "@/lib/dinheiro";
 import type { EstadoForm } from "@/lib/estado-form";
 import { UNIDADES, lerQuantidade, limparCodigo } from "@/lib/estoque";
 import type { Acao } from "@/lib/permissoes";
-import { ErroEstoque, cancelarVendaCaixa, registrarEntrada, registrarPerda, registrarVendaCaixa, salvarProduto, type VendaDoCaixa } from "@/lib/servidor/estoque";
+import { ErroEstoque, buscarNoCaixa, cancelarVendaCaixa, registrarEntrada, registrarPerda, registrarVendaCaixa, salvarProduto, type VendaDoCaixa, type VendaFeita } from "@/lib/servidor/estoque";
 import { registrarAuditoria } from "@/lib/servidor/auditoria";
 import { exigirPermissao } from "@/servidor/acesso";
 
@@ -140,17 +140,27 @@ const esquemaVenda = z.object({
   formaPagamento: z.enum(formaPagamentoEnum.enumValues),
   clienteId: z.uuid().nullable(),
   aReceber: z.boolean(),
+  valorEntregueCentavos: z.number().int().min(0).max(10_000_000_000).nullable(),
+  chave: z.uuid(),
 });
 
-export async function venderAcao(empresaId: string, venda: VendaDoCaixa): Promise<{ erro: string } | { vendaId: string; totalCentavos: number; estoqueNegativo: string[] }> {
+/** O caixa carrega só os que mais saem: o resto do catálogo vem por aqui. */
+export async function buscarNoCaixaAcao(empresaId: string, termo: string) {
+  await exigirEstoque(empresaId, "lancar");
+  if (typeof termo !== "string") return [];
+  return buscarNoCaixa(obterDb(), empresaId, termo);
+}
+
+export async function venderAcao(empresaId: string, venda: VendaDoCaixa): Promise<{ erro: string } | VendaFeita> {
   const ctx = await exigirEstoque(empresaId, "lancar");
   const r = esquemaVenda.safeParse(venda);
   if (!r.success) return { erro: "O carrinho tem algo inválido. Confira as quantidades." };
   try {
     const db = obterDb();
     const feito = await registrarVendaCaixa(db, empresaId, ctx.usuario.id, r.data);
-    // A venda do balcão aparece na Atividade e acorda as telas ao vivo.
-    await registrarAuditoria(db, { empresaId, usuarioId: ctx.usuario.id, ator: "usuario", acao: "venda.pdv", entidade: "venda", entidadeId: feito.vendaId, dados: { totalCentavos: feito.totalCentavos } });
+    // A venda do balcão aparece na Atividade e acorda as telas ao vivo (uma vez só, mesmo se o envio repetiu).
+    if (!feito.repetida)
+      await registrarAuditoria(db, { empresaId, usuarioId: ctx.usuario.id, ator: "usuario", acao: "venda.pdv", entidade: "venda", entidadeId: feito.vendaId, dados: { totalCentavos: feito.totalCentavos } });
     atualizar(empresaId);
     return feito;
   } catch (e) {

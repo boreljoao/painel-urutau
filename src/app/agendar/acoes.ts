@@ -1,7 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
-import { headers } from "next/headers";
+import { and, eq, inArray } from "drizzle-orm";
 import { obterDb } from "@/db";
 import { agendamentos } from "@/db/schema";
 import { dataValida } from "@/lib/datas";
@@ -9,7 +8,9 @@ import { registrarAuditoria } from "@/lib/servidor/auditoria";
 import { acharOuCriarPorTelefone } from "@/lib/servidor/clientes";
 import { normalizarTelefone } from "@/lib/validacao";
 import { horaValida } from "@/pacotes/agenda";
-import { agendamentoPorToken, empresaPorSlug, horarioLivre, jaPassou } from "@/servidor/agenda-publica";
+import { agendamentoPorToken, empresaPorSlug, horarioLivre, jaPassou, semChoqueNaTransacao } from "@/servidor/agenda-publica";
+import { freioPorIp } from "@/servidor/freio";
+import { travarDiaDaAgenda } from "@/servidor/trava-agenda";
 
 /**
  * O que o paciente faz sem login: marcar pela página da empresa e confirmar, cancelar ou remarcar
@@ -17,17 +18,8 @@ import { agendamentoPorToken, empresaPorSlug, horarioLivre, jaPassou } from "@/s
  * página estava aberta) e com freio contra robôs.
  */
 
-const tentativas = new Map<string, number[]>();
-async function freio(chave: string, max: number, janelaMs: number) {
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  const k = `${chave}:${ip}`;
-  const agora = Date.now();
-  const lista = (tentativas.get(k) ?? []).filter((t) => agora - t < janelaMs);
-  if (lista.length >= max) return false;
-  lista.push(agora);
-  tentativas.set(k, lista);
-  return true;
-}
+// O freio fica no banco (vale entre servidores); antes era um Map em memória que zerava a cada processo.
+const freio = (nome: string, max: number, janelaMs: number) => freioPorIp(`agenda-${nome}`, max, Math.round(janelaMs / 1000));
 
 export interface PedidoOnline {
   servico: string;
@@ -54,7 +46,11 @@ export async function marcarOnline(slug: string, p: PedidoOnline): Promise<{ err
 
   const db = obterDb();
   const { cliente } = await acharOuCriarPorTelefone(db, e.empresa.id, telefone, nome, "site");
-  const [novo] = await db
+  const novo = await db.transaction(async (tx) => {
+    // Na fila do dia: confere de novo depois de quem chegou antes gravar.
+    await travarDiaDaAgenda(tx, e.empresa.id, p.data);
+    if (!(await semChoqueNaTransacao(tx, e, p.data, p.hora))) return null;
+    const [n] = await tx
     .insert(agendamentos)
     .values({
       empresaId: e.empresa.id,
@@ -68,6 +64,9 @@ export async function marcarOnline(slug: string, p: PedidoOnline): Promise<{ err
       observacao: "Marcado pela página de agendamento.",
     })
     .returning({ id: agendamentos.id, token: agendamentos.tokenPaciente });
+    return n;
+  });
+  if (!novo) return { erro: "Esse horário acabou de ser ocupado. Escolha outro." };
   await registrarAuditoria(db, { empresaId: e.empresa.id, ator: "sistema", acao: "agenda.marcar", entidade: "agendamento", entidadeId: novo.id, dados: { origem: "online" } });
   return { token: novo.token };
 }
@@ -80,10 +79,13 @@ export async function responderPaciente(token: string, acao: "confirmar" | "canc
   if (a.ag.status !== "marcado" && a.ag.status !== "confirmado") return { erro: "Este horário não pode mais ser mudado por aqui. Fale com a equipe." };
   const status = acao === "confirmar" ? "confirmado" : "cancelado";
   const db = obterDb();
-  await db
+  // Confere o estado na própria gravação: se a equipe acabou de concluir, o link não sobrescreve.
+  const [mudou] = await db
     .update(agendamentos)
     .set({ status, respondidoEm: new Date(), atualizadoEm: new Date() })
-    .where(and(eq(agendamentos.id, a.ag.id), eq(agendamentos.empresaId, a.ag.empresaId)));
+    .where(and(eq(agendamentos.id, a.ag.id), eq(agendamentos.empresaId, a.ag.empresaId), inArray(agendamentos.status, ["marcado", "confirmado"])))
+    .returning({ id: agendamentos.id });
+  if (!mudou) return { erro: "Este horário não pode mais ser mudado por aqui. Fale com a equipe." };
   await registrarAuditoria(db, { empresaId: a.ag.empresaId, ator: "sistema", acao: `agenda.${status}`, entidade: "agendamento", entidadeId: a.ag.id, dados: { pelo: "paciente" } });
   return {};
 }
@@ -99,11 +101,18 @@ export async function remarcarPaciente(token: string, data: string, hora: string
   if (!e) return { erro: "A remarcação pela internet está desligada. Fale com a equipe." };
   if (!(await horarioLivre(e, data, hora, a.ag.id))) return { erro: "Esse horário acabou de ser ocupado. Escolha outro." };
   const db = obterDb();
-  await db
-    .update(agendamentos)
-    // Remarcado volta a "marcado" e os lembretes recomeçam para o novo horário.
-    .set({ data, hora, status: "marcado", lembretes: {}, respondidoEm: new Date(), atualizadoEm: new Date() })
-    .where(and(eq(agendamentos.id, a.ag.id), eq(agendamentos.empresaId, a.ag.empresaId)));
+  const ok = await db.transaction(async (tx) => {
+    await travarDiaDaAgenda(tx, a.ag.empresaId, data);
+    if (!(await semChoqueNaTransacao(tx, e, data, hora, a.ag.id))) return false;
+    const [mudou] = await tx
+      .update(agendamentos)
+      // Remarcado volta a "marcado" e os lembretes recomeçam para o novo horário.
+      .set({ data, hora, status: "marcado", lembretes: {}, respondidoEm: new Date(), atualizadoEm: new Date() })
+      .where(and(eq(agendamentos.id, a.ag.id), eq(agendamentos.empresaId, a.ag.empresaId), inArray(agendamentos.status, ["marcado", "confirmado"])))
+      .returning({ id: agendamentos.id });
+    return !!mudou;
+  });
+  if (!ok) return { erro: "Esse horário acabou de ser ocupado ou já foi mudado pela equipe. Escolha outro." };
   await registrarAuditoria(db, { empresaId: a.ag.empresaId, ator: "sistema", acao: "agenda.remarcar", entidade: "agendamento", entidadeId: a.ag.id, dados: { de: `${a.ag.data} ${a.ag.hora}`, para: `${data} ${hora}` } });
   return {};
 }

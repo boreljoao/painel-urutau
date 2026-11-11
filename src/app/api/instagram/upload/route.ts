@@ -1,6 +1,7 @@
 import { type HandleUploadBody, handleUpload } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { exigirPermissao } from "@/servidor/acesso";
+import { bloqueioDaDemo, freio } from "@/servidor/freio";
 
 /**
  * O celular manda fotos, vídeos e PDFs direto para o Vercel Blob (vídeo não passa pelo servidor,
@@ -17,9 +18,14 @@ export async function POST(request: Request) {
       onBeforeGenerateToken: async (pathname, payload) => {
         const { empresaId } = JSON.parse(payload ?? "{}") as { empresaId?: string };
         if (!empresaId) throw new Error("Empresa não informada.");
-        await exigirPermissao(empresaId, "lancar");
+        const ctx = await exigirPermissao(empresaId, "lancar");
+        const demo = bloqueioDaDemo(ctx.usuario);
+        if (demo) throw new Error(demo);
         if (!pathname.startsWith(`instagram/${empresaId}/`)) throw new Error("Destino do arquivo inválido.");
-        return { allowedContentTypes: TIPOS, maximumSizeInBytes: 300 * 1024 * 1024, addRandomSuffix: true };
+        // Teto de envios por empresa por dia (armazenamento custa).
+        if (!(await freio(`upload:empresa:${empresaId}`, 150, 24 * 60 * 60))) throw new Error("A empresa chegou ao limite de arquivos enviados hoje.");
+        const video = /\.(mp4|mov)$/i.test(pathname);
+        return { allowedContentTypes: TIPOS, maximumSizeInBytes: (video ? 200 : 25) * 1024 * 1024, addRandomSuffix: true };
       },
     });
     return NextResponse.json(resposta);

@@ -7,7 +7,7 @@ import { formatarQuantidade } from "@/lib/estoque";
 import type { ItemVencimento } from "@/lib/servidor/painel";
 import { opcoesDeClientes } from "@/lib/servidor/clientes";
 import { painelEstoque, produtosDoCaixa } from "@/lib/servidor/estoque";
-import { venderAcao } from "@/pacotes/estoque-acoes";
+import { buscarNoCaixaAcao, venderAcao } from "@/pacotes/estoque-acoes";
 import { CaixaPdv } from "@/pacotes/CaixaPdv";
 import { Icone } from "@/componentes/Icone";
 import { reais } from "@/componentes/formato";
@@ -62,7 +62,7 @@ export async function VisaoLoja({
   const aReceber = vencimentos.filter((v) => v.tipo === "receber").slice(0, 5);
   const totalPagar = vencimentos.filter((v) => v.tipo === "pagar").reduce((t, v) => t + v.valor, 0);
   const totalReceber = vencimentos.filter((v) => v.tipo === "receber").reduce((t, v) => t + v.valor, 0);
-  const critico = estoque.repor + estoque.semEstoque;
+  const critico = estoque.repor;
 
   return (
     <>
@@ -100,7 +100,7 @@ export async function VisaoLoja({
         </header>
         <strong className={`grande ${critico ? "ruim" : ""}`}>{critico}</strong>
         <p className="nota">
-          {estoque.semEstoque} sem estoque · {estoque.repor} abaixo do mínimo
+          {estoque.semEstoque} sem estoque · {estoque.abaixoMinimo} abaixo do mínimo
         </p>
       </Link>
       <Link href={`${base}/estoque`} className="cartao vg-numero">
@@ -119,7 +119,7 @@ export async function VisaoLoja({
               Abrir caixa completo <Icone nome="seta" />
             </Link>
           </header>
-          <CaixaPdv produtos={produtos} clientes={clientes} vender={venderAcao.bind(null, empresaId)} base={base} compacto />
+          <CaixaPdv produtos={produtos} clientes={clientes} vender={venderAcao.bind(null, empresaId)} buscar={buscarNoCaixaAcao.bind(null, empresaId)} base={base} compacto />
         </section>
       )}
 

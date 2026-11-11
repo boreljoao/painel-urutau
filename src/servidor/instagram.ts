@@ -2,7 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { BetaContentBlockParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { BancoDeDados } from "@/db";
 import {
@@ -191,6 +191,15 @@ export function mutacaoCreatePost(canalId: string, e: Envio) {
   }`;
 }
 
+/** Tira do Buffer um post ainda agendado. Se o Buffer não confirmar, quem chamou não apaga nada aqui. */
+async function apagarNoBuffer(token: string, id: string) {
+  const { deletePost } = await chamarBuffer<{ deletePost: { id?: string; message?: string } }>(
+    token,
+    `mutation { deletePost(input: { id: ${textoGraphql(id)} }) { ... on DeletePostSuccess { id } ... on MutationError { message } } }`,
+  );
+  if (!deletePost.id) throw new ErroInstagram(`Buffer: ${deletePost.message ?? "não cancelou o agendamento"}`);
+}
+
 async function publicarNoBuffer(token: string, canalId: string, e: Envio) {
   const { createPost } = await chamarBuffer<{ createPost: { post?: { id: string }; message?: string } }>(token, mutacaoCreatePost(canalId, e));
   if (!createPost.post) throw new ErroInstagram(`Buffer: ${createPost.message ?? "não aceitou o post"}`);
@@ -325,14 +334,77 @@ export async function processarCriacao(db: BancoDeDados, postId: string, criar?:
     await new Promise((r) => setTimeout(r, 1200));
     await mudar(db, postId, { situacao: "pronto", conteudo, analise });
     if (post.modo === "automatico" && (await contaDaEmpresa(db, post.empresaId))) {
+      // Mesma conferência do botão Enviar: o automático não manda o que o manual recusaria.
+      const motivo = motivoParaNaoEnviar({ ...post, conteudo });
+      if (motivo) {
+        await mudar(db, postId, { erro: `Não enviado sozinho: ${motivo} Revise e envie.` });
+        return;
+      }
       const quando: Quando = post.agendadoPara && post.agendadoPara > new Date() ? { tipo: "data", em: post.agendadoPara } : { tipo: "fila" };
-      await mudar(db, postId, { situacao: "enviando", envio: quando.tipo });
+      if (!(await reservarEnvio(db, post.empresaId, postId, quando.tipo))) return;
       await processarEnvio(db, post.empresaId, postId, quando);
     }
   } catch (e) {
     console.error("instagram: criação", postId, e);
     await mudar(db, postId, { situacao: "erro", erro: mensagem(e) });
   }
+}
+
+/**
+ * Pode enviar? A mesma conferência vale para o botão Enviar e para o modo automático
+ * (auditoria I03): texto pronto, sem dado por preencher, legenda no tamanho, material certo
+ * para o formato e ainda não enviado.
+ */
+export function motivoParaNaoEnviar(post: Pick<PostInstagram, "id" | "formato" | "arquivos" | "conteudo" | "bufferPostId">): string | null {
+  if (!post.conteudo) return "Este post ainda não está pronto.";
+  if (post.bufferPostId) return "Este post já foi enviado ao Buffer.";
+  const texto = `${post.conteudo.gancho ?? ""} ${post.conteudo.legenda}`;
+  if (texto.includes("{{")) return "A legenda ainda tem um dado para preencher.";
+  if (post.conteudo.legenda.length > 2200) return "A legenda passa de 2.200 caracteres.";
+  try {
+    materiaisDoEnvio(post);
+  } catch (e) {
+    return e instanceof ErroInstagram ? e.message : "Material inválido.";
+  }
+  return null;
+}
+
+/**
+ * Passa o post para "enviando" só se ele estiver pronto (ou em erro) e nunca foi aceito pelo
+ * Buffer. Duas chamadas ao mesmo tempo: só uma consegue (auditoria I02).
+ */
+export async function reservarEnvio(db: BancoDeDados, empresaId: string, postId: string, envio: Quando["tipo"]) {
+  const [ok] = await db
+    .update(postsInstagram)
+    .set({ situacao: "enviando", envio, erro: null, atualizadoEm: new Date() })
+    .where(and(eq(postsInstagram.id, postId), eq(postsInstagram.empresaId, empresaId), inArray(postsInstagram.situacao, ["pronto", "erro"]), isNull(postsInstagram.bufferPostId)))
+    .returning({ id: postsInstagram.id });
+  return !!ok;
+}
+
+/**
+ * Apaga o post do painel. Agendado no Buffer: cancela lá primeiro; se o Buffer não confirmar,
+ * nada some daqui (não dá para fingir que cancelou). Já publicado: some do painel, mas continua
+ * no Instagram — quem chamou avisa.
+ */
+export async function excluirPostComBuffer(db: BancoDeDados, empresaId: string, postId: string): Promise<{ erro?: string; continuaNoInstagram?: boolean }> {
+  const post = await postDaEmpresa(db, empresaId, postId);
+  if (!post) return {};
+  if (post.situacao === "enviando") return { erro: "O post está sendo enviado agora. Espere terminar para apagar." };
+  let continuaNoInstagram = false;
+  if (post.bufferPostId) {
+    if (post.situacao === "agendado") {
+      const conta = await contaDaEmpresa(db, empresaId);
+      if (!conta) return { erro: "O post está agendado no Buffer e a conta foi desligada. Cancele no Buffer e depois apague aqui." };
+      try {
+        await apagarNoBuffer(decifrar(conta.bufferTokenCifrado), post.bufferPostId);
+      } catch (e) {
+        return { erro: `Não consegui cancelar no Buffer, então o post continua agendado. ${mensagem(e)}` };
+      }
+    } else continuaNoInstagram = true;
+  }
+  await db.delete(postsInstagram).where(and(eq(postsInstagram.id, postId), eq(postsInstagram.empresaId, empresaId)));
+  return { continuaNoInstagram };
 }
 
 /** O que dá para mandar ao Buffer conforme o formato e os materiais. */
@@ -375,7 +447,12 @@ export async function processarEnvio(db: BancoDeDados, empresaId: string, postId
     });
   } catch (e) {
     console.error("instagram: envio", postId, e);
-    await mudar(db, postId, { situacao: "erro", erro: mensagem(e) });
+    // Tempo esgotado ou rede caiu: o Buffer pode ter aceitado. Não dá para afirmar que falhou.
+    const incerto = !(e instanceof ErroInstagram) || /timeout|aborted|fetch failed/i.test(String((e as Error)?.message));
+    await mudar(db, postId, {
+      situacao: "erro",
+      erro: incerto ? "Não deu para saber se o Buffer recebeu (a conexão caiu). Confira no Buffer antes de enviar de novo, para não sair duplicado." : mensagem(e),
+    });
   }
 }
 

@@ -4255,3 +4255,23 @@ ul.lista-escolha,
 }
 @media (max-width: 1180px) { .loja-caixa, .loja-repor, .loja-ultimas { grid-column: 1 / -1; } .loja-contas { grid-column: span 6; } }
 @media (max-width: 600px) { .loja-contas { grid-column: 1 / -1; } }
+
+/* ─── Auditoria: caixa e estoque ───────────────────────────────────────── */
+.pdv-qtd { align-items: center; }
+.pdv-qtd input { width: 52px; height: 28px; padding: 0 4px; border: 1px solid var(--linha); border-radius: 8px; background: var(--superficie); text-align: center; font-variant-numeric: tabular-nums; }
+.pdv-falta { color: var(--ruim); }
+.pdv-linha input[aria-invalid="true"] { border-color: var(--ruim); }
+.pdv-bloqueio { margin: 0; color: var(--ruim); font-size: 13px; font-weight: 600; }
+.caixa-dia-partes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.caixa-dia-partes div { padding: 8px 10px; border-radius: 10px; background: var(--tom); }
+.caixa-dia-partes dt { color: var(--suave); font-size: 12px; }
+.caixa-dia-partes dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.caixa-dia-partes dd.ruim { color: var(--ruim); }
+.caixa-dia-total > span:first-child { color: var(--suave); font-size: 13px; }
+.patio-resumo a.cartao { color: var(--tinta); text-decoration: none; }
+.patio-resumo .cartao small { color: var(--suave); font-size: 12px; }
+.chip-conta { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--tom-2); font-size: 12px; font-weight: 700; }
+.estoque-paginas { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 4px 0; color: var(--suave); font-size: 13px; }
+.estoque-paginas span { margin-right: auto; }
+.janela-aviso { margin: 0 20px 4px; padding: 10px 12px; border-radius: 10px; background: #fff4e0; color: #8a4b08; font-size: 13px; }
+.lembrete-confirmar { display: inline-flex; gap: 6px; }

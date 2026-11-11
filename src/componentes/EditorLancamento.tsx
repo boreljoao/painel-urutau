@@ -6,6 +6,7 @@ import { opcoesDeClientes } from "@/lib/servidor/clientes";
 import { listarCategorias, listarFontes, obterDespesa, obterVenda } from "@/lib/servidor/lancamentos";
 import { editarDespesa, editarVenda, excluirLancamento, restaurarLancamento } from "@/app/[empresaId]/acoes";
 import { exigirAcesso } from "@/servidor/acesso";
+import { explicarOrigem, origemDaVenda } from "@/lib/servidor/ciclo-venda";
 import { AvisoPagina, EditarLancamento } from "./editar";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,7 +24,12 @@ export async function EditorLancamento({ empresaId, tipo, id, ...destinos }: { e
   const ctx = await exigirAcesso(empresaId, "ver_lancamentos");
   const l = tipo === "venda" ? await obterVenda(ctx, id) : await obterDespesa(ctx, id);
   if (!l || !podeAlterarLancamento(ctx.papel, ctx.usuario.id, l.criadoPor)) return null;
-  const [todasFontes, todasCategorias, clientes] = await Promise.all([listarFontes(empresaId, false), listarCategorias(empresaId, false), opcoesDeClientes(obterDb(), empresaId)]);
+  const [todasFontes, todasCategorias, clientes, origem] = await Promise.all([
+    listarFontes(empresaId, false),
+    listarCategorias(empresaId, false),
+    opcoesDeClientes(obterDb(), empresaId),
+    tipo === "venda" ? origemDaVenda(obterDb(), empresaId, id).then(explicarOrigem) : undefined,
+  ]);
   // Uma fonte ou categoria desativada depois do lançamento ainda precisa aparecer na lista.
   const fontes = todasFontes.filter((f) => f.ativo || ("fonteReceitaId" in l && f.id === l.fonteReceitaId));
   const categorias = todasCategorias.filter((c) => c.ativo || ("categoriaId" in l && c.id === l.categoriaId));
@@ -44,6 +50,7 @@ export async function EditorLancamento({ empresaId, tipo, id, ...destinos }: { e
       clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
       editar={(tipo === "venda" ? editarVenda : editarDespesa).bind(null, empresaId, id)}
       excluir={excluirLancamento.bind(null, empresaId, tipo, id)}
+      origem={origem}
       {...destinos}
     />
   );

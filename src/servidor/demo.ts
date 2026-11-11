@@ -184,7 +184,7 @@ export async function criarDemo(perfil: Perfil): Promise<{ usuarioId: string; em
 
   const listaClientes = await db
     .insert(clientes)
-    .values(x.clientes.map((nome, i) => ({ empresaId, nome, telefone: `55219${String(87_000_000 + i * 1_371_113 + Math.floor(Math.random() * 1000)).slice(0, 8)}`, criadoPor: u.id })))
+    .values(x.clientes.map((nome, i) => ({ empresaId, nome, telefone: `5521900000${String(100 + i).padStart(3, "0")}`, criadoPor: u.id })))
     .returning({ id: clientes.id, nome: clientes.nome });
 
   const hojeData = hoje();

@@ -26,6 +26,8 @@ interface OpcoesEdicao {
   fechar: string;
   aposSalvar: string;
   aposExcluir: string;
+  /** De onde a venda veio (caixa, agenda, pátio) e o que excluir faz com ela. */
+  origem?: { aviso: string | null; textoExcluir: string };
 }
 
 export function EditarLancamento(o: OpcoesEdicao) {
@@ -58,6 +60,11 @@ export function EditarLancamento(o: OpcoesEdicao) {
           ×
         </button>
       </header>
+      {o.origem?.aviso && (
+        <p className="janela-aviso" role="note">
+          {o.origem.aviso}
+        </p>
+      )}
       {o.tipo === "venda" ? (
         <FormVenda {...base} inicial={o.inicial} rotulo="Salvar alterações" lancarVenda={o.editar} lancarDespesa={o.editar} />
       ) : (
@@ -66,7 +73,7 @@ export function EditarLancamento(o: OpcoesEdicao) {
       <footer className="janela-pe">
         {confirmar ? (
           <>
-            <span>Excluir este lançamento? Dá para desfazer logo em seguida.</span>
+            <span>{o.origem?.textoExcluir ?? "Excluir este lançamento? Dá para desfazer logo em seguida."}</span>
             <button type="button" className="botao-claro" onClick={() => setConfirmar(false)} disabled={pendente}>
               Não
             </button>

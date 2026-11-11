@@ -5,7 +5,7 @@ import { pode } from "@/lib/permissoes";
 import { opcoesDeClientes } from "@/lib/servidor/clientes";
 import { caixaDoDia, produtosDoCaixa } from "@/lib/servidor/estoque";
 import { exigirAcesso } from "@/servidor/acesso";
-import { cancelarVendaAcao, venderAcao } from "@/pacotes/estoque-acoes";
+import { buscarNoCaixaAcao, cancelarVendaAcao, venderAcao } from "@/pacotes/estoque-acoes";
 import { CaixaPdv } from "@/pacotes/CaixaPdv";
 import { AoVivo } from "@/componentes/AoVivo";
 import { Icone } from "@/componentes/Icone";
@@ -43,17 +43,29 @@ export default async function Caixa({ params }: { params: Promise<{ empresaId: s
 
       <div className="caixa-grade">
         <section className="cartao">
-          <CaixaPdv produtos={produtos} clientes={clientes} vender={venderAcao.bind(null, empresaId)} base={`/${empresaId}`} />
+          <CaixaPdv produtos={produtos} clientes={clientes} vender={venderAcao.bind(null, empresaId)} buscar={buscarNoCaixaAcao.bind(null, empresaId)} base={`/${empresaId}`} />
         </section>
 
         <aside className="cartao caixa-dia">
           <h2>Caixa de hoje</h2>
           <div className="caixa-dia-total">
+            <span>Vendido no caixa</span>
             <strong>{reais(dia.total, true)}</strong>
             <span>
               {dia.lista.length} {dia.lista.length === 1 ? "venda" : "vendas"} · ticket médio {reais(dia.ticketMedio, true)}
             </span>
           </div>
+          <dl className="caixa-dia-partes">
+            <div>
+              <dt>Pago na hora</dt>
+              <dd>{reais(dia.recebido, true)}</dd>
+            </div>
+            <div>
+              <dt>Fiado (a receber)</dt>
+              <dd className={dia.aReceber ? "ruim" : ""}>{reais(dia.aReceber, true)}</dd>
+            </div>
+          </dl>
+          <p className="nota">Pix e cartão aparecem como pagos quando registrados aqui; a confirmação do banco é conferida no extrato.</p>
           {dia.porForma.length > 0 && (
             <ul className="caixa-formas">
               {dia.porForma.map(([f, v]) => (
@@ -72,8 +84,8 @@ export default async function Caixa({ params }: { params: Promise<{ empresaId: s
                   <span>
                     <strong>{reais(v.valor, true)}</strong>
                     <small>
-                      {hora(v.criadoEm)} · {NOME_FORMA[v.formaPagamento] ?? v.formaPagamento}
-                      {v.status === "a_receber" ? " · fiado" : ""} · {v.itens} {v.itens === 1 ? "item" : "itens"}
+                      {hora(v.criadoEm)} · {v.status === "a_receber" ? "fiado" : (NOME_FORMA[v.formaPagamento] ?? v.formaPagamento)}
+                      {v.trocoCentavos ? ` · troco ${reais(v.trocoCentavos, true)}` : ""} · {v.itens} {v.itens === 1 ? "item" : "itens"}
                     </small>
                   </span>
                   {podeEstornar && <BotaoAcao acao={cancelarVendaAcao.bind(null, empresaId, v.id)} rotulo="Estornar" icone={null} classe="botao-pequeno botao-pequeno-apagado" />}

@@ -6,7 +6,9 @@ import { obterDb } from "@/db";
 import { type StatusConversa, categoriasDespesa, clientes, despesas, fontesReceita, vendas } from "@/db/schema";
 import { mudarStatusConversa } from "@/lib/servidor/atendimento";
 import type { EstadoForm } from "@/lib/estado-form";
-import { podeAlterarLancamento } from "@/lib/permissoes";
+import { pode, podeAlterarLancamento } from "@/lib/permissoes";
+import { ErroEstoque } from "@/lib/servidor/estoque";
+import { excluirVenda, explicarOrigem, origemDaVenda, restaurarVenda } from "@/lib/servidor/ciclo-venda";
 import { registrarAuditoria } from "@/lib/servidor/auditoria";
 import { clienteDaEmpresa } from "@/lib/servidor/clientes";
 import { conferirVenda } from "@/lib/servidor/conferencia";
@@ -109,6 +111,9 @@ export async function editarVenda(empresaId: string, id: string, _: EstadoForm, 
     .limit(1);
   if (!fonte) return { erros: { fonteReceitaId: "Escolha de onde veio a venda" }, valores };
   if (r.data.clienteId && !(await clienteDaEmpresa(db, empresaId, r.data.clienteId))) return { erros: { clienteId: "Cliente inválido" }, valores };
+  // Venda do caixa (itens e estoque) ou de um carro do pátio: o valor não muda solto aqui.
+  const origem = explicarOrigem(await origemDaVenda(db, empresaId, id));
+  if (!origem.valorLivre && r.data.valor !== a.valor) return { erros: { valor: origem.aviso ?? "O valor desta venda não muda por aqui." }, valores };
   await db
     .update(vendas)
     .set({
@@ -163,9 +168,19 @@ export async function editarDespesa(empresaId: string, id: string, _: EstadoForm
 export async function excluirLancamento(empresaId: string, tabela: "venda" | "despesa", id: string): Promise<{ erro?: string }> {
   const a = await lancamentoAlteravel(empresaId, tabela, id);
   if (a.erro) return { erro: a.erro };
-  const t = tabela === "venda" ? vendas : despesas;
-  await a.db.update(t).set({ excluidoEm: new Date() }).where(and(eq(t.id, id), eq(t.empresaId, empresaId)));
-  await registrarAuditoria(a.db, { empresaId, usuarioId: a.ctx.usuario.id, ator: "usuario", acao: `${tabela}.excluir`, entidade: tabela, entidadeId: id, dados: { valorCentavos: a.valor } });
+  if (tabela === "venda") {
+    // Caixa devolve estoque; agenda solta o atendimento; pátio devolve o carro.
+    try {
+      await excluirVenda(a.db, empresaId, id, a.ctx.usuario.id, pode(a.ctx.papel, "gerenciar"));
+    } catch (e) {
+      if (e instanceof ErroEstoque) return { erro: e.message };
+      throw e;
+    }
+    revalidatePath(`/${empresaId}`, "layout");
+    return {};
+  }
+  await a.db.update(despesas).set({ excluidoEm: new Date() }).where(and(eq(despesas.id, id), eq(despesas.empresaId, empresaId), isNull(despesas.excluidoEm)));
+  await registrarAuditoria(a.db, { empresaId, usuarioId: a.ctx.usuario.id, ator: "usuario", acao: "despesa.excluir", entidade: "despesa", entidadeId: id, dados: { valorCentavos: a.valor } });
   revalidatePath(`/${empresaId}`, "layout");
   return {};
 }
@@ -177,6 +192,16 @@ export async function restaurarLancamento(empresaId: string, tabela: "venda" | "
   const [l] = await db.select({ criadoPor: t.criadoPor }).from(t).where(and(eq(t.id, id), eq(t.empresaId, empresaId), isNotNull(t.excluidoEm))).limit(1);
   if (!l) return { erro: "Este lançamento já foi restaurado." };
   if (!podeAlterarLancamento(ctx.papel, ctx.usuario.id, l.criadoPor)) return { erro: "Você só pode alterar os lançamentos que você fez." };
+  if (tabela === "venda") {
+    try {
+      await restaurarVenda(db, empresaId, id, ctx.usuario.id);
+    } catch (e) {
+      if (e instanceof ErroEstoque) return { erro: e.message };
+      throw e;
+    }
+    revalidatePath(`/${empresaId}`, "layout");
+    return;
+  }
   await db.update(t).set({ excluidoEm: null }).where(and(eq(t.id, id), eq(t.empresaId, empresaId)));
   await registrarAuditoria(db, { empresaId, usuarioId: ctx.usuario.id, ator: "usuario", acao: `${tabela}.restaurar`, entidade: tabela, entidadeId: id });
   revalidatePath(`/${empresaId}`, "layout");

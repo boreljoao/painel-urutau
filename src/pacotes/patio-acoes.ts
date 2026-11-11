@@ -163,7 +163,14 @@ export async function venderVeiculo(empresaId: string, id: string, _: EstadoForm
     .limit(1);
   if (!fonte) return { erros: { fonteReceitaId: "Escolha a fonte" }, valores };
   if (r.data.clienteId && !(await clienteDaEmpresa(db, empresaId, r.data.clienteId))) return { erros: { clienteId: "Cliente inválido" }, valores };
+  // Trava o carro: duas vendas ao mesmo tempo não lançam duas receitas para o mesmo carro.
   const vendaId = await db.transaction(async (tx) => {
+    const [livre] = await tx
+      .select({ status: veiculos.status, vendaId: veiculos.vendaId })
+      .from(veiculos)
+      .where(and(eq(veiculos.id, id), eq(veiculos.empresaId, empresaId), isNull(veiculos.excluidoEm)))
+      .for("update");
+    if (!livre || livre.vendaId || livre.status === "vendido") return null;
     const [venda] = await tx
       .insert(vendas)
       .values({
@@ -179,12 +186,15 @@ export async function venderVeiculo(empresaId: string, id: string, _: EstadoForm
         criadoPor: ctx.usuario.id,
       })
       .returning({ id: vendas.id });
-    await tx
+    const [ok] = await tx
       .update(veiculos)
       .set({ status: "vendido", valorVendaCentavos: r.data.valor, vendidoEm: r.data.data, vendaId: venda.id, clienteId: r.data.clienteId, atualizadoEm: new Date() })
-      .where(and(eq(veiculos.id, id), isNull(veiculos.vendaId)));
+      .where(and(eq(veiculos.id, id), isNull(veiculos.vendaId)))
+      .returning({ id: veiculos.id });
+    if (!ok) throw new Error("O carro mudou durante a venda.");
     return venda.id;
   });
+  if (!vendaId) return { erros: { _: "Este carro já foi vendido." }, valores };
   await registrarAuditoria(db, {
     empresaId,
     usuarioId: ctx.usuario.id,

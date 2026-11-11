@@ -60,19 +60,19 @@ function revalidar(empresaId: string) {
 }
 
 /**
- * Liga o horário a um cliente: o escolhido na lista, o de mesmo nome, o de mesmo telefone ou um
- * novo (só quando veio telefone: sem ele, o horário fica só com o nome). Cliente sem telefone
- * ganha o que foi digitado, para dar para confirmar pelo WhatsApp.
+ * Liga o horário a um cliente: o escolhido na lista, o de mesmo telefone ou um novo (só quando
+ * veio telefone: sem ele, o horário fica só com o nome). Nome igual NÃO liga: dois "João Silva"
+ * são duas pessoas (auditoria F14). O telefone digitado só completa o cadastro escolhido na lista.
  */
 async function resolverCliente(empresaId: string, usuarioId: string, d: { clienteId: string | null; nome: string; telefone: string | null }) {
   const db = obterDb();
   const vivo = and(eq(clientes.empresaId, empresaId), isNull(clientes.excluidoEm));
   let c: { id: string; telefone: string | null } | undefined;
   if (d.clienteId) [c] = await db.select({ id: clientes.id, telefone: clientes.telefone }).from(clientes).where(and(vivo, eq(clientes.id, d.clienteId))).limit(1);
+  const escolhido = !!c;
   if (!c && d.telefone) [c] = await db.select({ id: clientes.id, telefone: clientes.telefone }).from(clientes).where(and(vivo, eq(clientes.telefone, d.telefone))).limit(1);
-  if (!c) [c] = await db.select({ id: clientes.id, telefone: clientes.telefone }).from(clientes).where(and(vivo, sql`lower(${clientes.nome}) = lower(${d.nome})`)).limit(1);
   if (c) {
-    if (!c.telefone && d.telefone) {
+    if (escolhido && !c.telefone && d.telefone) {
       const [dono] = await db.select({ id: clientes.id }).from(clientes).where(and(vivo, eq(clientes.telefone, d.telefone))).limit(1);
       if (!dono) await db.update(clientes).set({ telefone: d.telefone, atualizadoEm: new Date() }).where(eq(clientes.id, c.id));
     }
@@ -242,7 +242,14 @@ export async function receberAgendamento(empresaId: string, id: string, rotulo: 
   if (!fonte) return { erros: { fonteReceitaId: "Escolha a fonte" }, valores };
   // Venda não pode ficar no futuro: atendimento recebido adiantado entra no dia de hoje.
   const dia = a.data > hoje() ? hoje() : a.data;
+  // Trava o atendimento: dois cliques (ou duas abas) não lançam duas receitas.
   const vendaId = await db.transaction(async (tx) => {
+    const [livre] = await tx
+      .select({ vendaId: agendamentos.vendaId })
+      .from(agendamentos)
+      .where(and(eq(agendamentos.id, id), eq(agendamentos.empresaId, empresaId), isNull(agendamentos.excluidoEm)))
+      .for("update");
+    if (!livre || livre.vendaId) return null;
     const [v] = await tx
       .insert(vendas)
       .values({
@@ -260,9 +267,10 @@ export async function receberAgendamento(empresaId: string, id: string, rotulo: 
       })
       .returning({ id: vendas.id });
     await tx.update(agendamentos).set({ vendaId: v.id, status: "atendido", atualizadoEm: new Date() }).where(eq(agendamentos.id, id));
+    await registrarAuditoria(tx as unknown as typeof db, { empresaId, usuarioId: ctx.usuario.id, ator: "usuario", acao: "agenda.receber", entidade: "agendamento", entidadeId: id, dados: { vendaId: v.id } });
     return v.id;
   });
-  await registrarAuditoria(db, { empresaId, usuarioId: ctx.usuario.id, ator: "usuario", acao: "agenda.receber", entidade: "agendamento", entidadeId: id, dados: { vendaId } });
+  if (!vendaId) return { erros: { _: "Este atendimento já foi lançado." }, valores };
   revalidar(empresaId);
   return { ok: "Recebimento lançado." };
 }

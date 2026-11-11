@@ -6,6 +6,7 @@ import { obterDb } from "@/db";
 import { type ArquivoPostInstagram, type FormatoPostInstagram, postsInstagram } from "@/db/schema";
 import { analisar } from "@/lib/instagram/analise";
 import { exigirPermissao } from "@/servidor/acesso";
+import { IA_POR_DIA, bloqueioDaDemo, freio } from "@/servidor/freio";
 import {
   type DadosPost,
   ErroInstagram,
@@ -14,10 +15,12 @@ import {
   contaDaEmpresa,
   desligarConta,
   listarPosts,
-  materiaisDoEnvio,
+  excluirPostComBuffer,
+  motivoParaNaoEnviar,
   planejarSemana,
   postDaEmpresa,
   processarCriacao,
+  reservarEnvio,
   processarEnvio,
   salvarConta,
   salvarRascunho,
@@ -70,6 +73,9 @@ export async function gerarPost(empresaId: string, f: FormularioPost, postId?: s
   const ctx = await exigirPermissao(empresaId, "lancar");
   const dados = validar(f);
   if (typeof dados === "string") return { erro: dados };
+  const demo = bloqueioDaDemo(ctx.usuario);
+  if (demo) return { erro: demo };
+  if (!(await freio(`ia:empresa:${empresaId}`, IA_POR_DIA, 24 * 60 * 60))) return { erro: `A empresa já usou os ${IA_POR_DIA} posts de IA de hoje. Amanhã libera de novo.` };
   const db = obterDb();
   const id = await salvarRascunho(db, empresaId, ctx.usuario.id, dados, postId);
   await db.update(postsInstagram).set({ situacao: "criando", erro: null, conteudo: null, analise: null, atualizadoEm: new Date() }).where(eq(postsInstagram.id, id));
@@ -97,35 +103,40 @@ export async function editarTexto(empresaId: string, postId: string, gancho: str
 }
 
 export async function enviarPost(empresaId: string, postId: string, quando: { tipo: "agora" | "fila" } | { tipo: "data"; em: string }): Promise<{ erro?: string }> {
-  await exigirPermissao(empresaId, "lancar");
+  const ctx = await exigirPermissao(empresaId, "lancar");
+  const demo = bloqueioDaDemo(ctx.usuario);
+  if (demo) return { erro: demo };
   const db = obterDb();
   if (!(await contaDaEmpresa(db, empresaId))) return { erro: "Ligue o Instagram da empresa (Buffer) antes de enviar." };
   const post = await postDaEmpresa(db, empresaId, postId);
-  if (!post?.conteudo) return { erro: "Este post ainda não está pronto." };
-  if (post.conteudo.legenda.includes("{{")) return { erro: "A legenda ainda tem um dado para preencher." };
-  try {
-    materiaisDoEnvio(post);
-  } catch (e) {
-    return { erro: e instanceof ErroInstagram ? e.message : "Material inválido." };
-  }
+  if (!post) return { erro: "Este post não existe mais." };
+  const motivo = motivoParaNaoEnviar(post);
+  if (motivo) return { erro: motivo };
   let alvo: Quando;
   if (quando.tipo === "data") {
     const em = new Date(quando.em);
     if (Number.isNaN(em.getTime()) || em.getTime() < Date.now() + 5 * 60_000) return { erro: "Escolha uma data e hora pelo menos 5 minutos à frente." };
     alvo = { tipo: "data", em };
   } else alvo = { tipo: quando.tipo };
-  await db.update(postsInstagram).set({ situacao: "enviando", envio: alvo.tipo, erro: null, atualizadoEm: new Date() }).where(eq(postsInstagram.id, postId));
+  // Só um envio por post: a segunda chamada (clique duplo, outra aba) não passa daqui.
+  if (!(await reservarEnvio(db, empresaId, postId, alvo.tipo))) return { erro: "Este post já está sendo enviado ou já foi enviado." };
   after(() => processarEnvio(db, empresaId, postId, alvo));
   return {};
 }
 
-export async function excluirPost(empresaId: string, postId: string) {
+/** Agendado: cancela no Buffer antes. Publicado: some do painel, mas continua no Instagram. */
+export async function excluirPost(empresaId: string, postId: string): Promise<{ erro?: string; continuaNoInstagram?: boolean }> {
   await exigirPermissao(empresaId, "lancar");
-  await obterDb().delete(postsInstagram).where(and(eq(postsInstagram.id, postId), eq(postsInstagram.empresaId, empresaId)));
+  return excluirPostComBuffer(obterDb(), empresaId, postId);
 }
 
 export async function planejarSemanaAcao(empresaId: string, contexto: string): Promise<{ erro?: string; quantos?: number }> {
   const ctx = await exigirPermissao(empresaId, "lancar");
+  const demo = bloqueioDaDemo(ctx.usuario);
+  if (demo) return { erro: demo };
+  // Planejar a semana gera vários posts: conta 7 do orçamento do dia.
+  for (let i = 0; i < 7; i++)
+    if (!(await freio(`ia:empresa:${empresaId}`, IA_POR_DIA, 24 * 60 * 60))) return { erro: `A empresa já usou os ${IA_POR_DIA} posts de IA de hoje. Amanhã libera de novo.` };
   const db = obterDb();
   const hoje = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
   try {
@@ -141,7 +152,9 @@ export async function planejarSemanaAcao(empresaId: string, contexto: string): P
 
 /** Passo 1 da ligação: confere a chave e devolve os perfis de Instagram dela. */
 export async function buscarCanais(empresaId: string, chave: string) {
-  await exigirPermissao(empresaId, "gerenciar");
+  const ctx = await exigirPermissao(empresaId, "gerenciar");
+  const demo = bloqueioDaDemo(ctx.usuario);
+  if (demo) return { erro: demo };
   const token = chave.trim();
   if (token.length < 10) return { erro: "Cole a chave da API do Buffer." };
   try {
@@ -155,7 +168,9 @@ export async function buscarCanais(empresaId: string, chave: string) {
 
 /** Passo 2: guarda a chave (cifrada) e o perfil escolhido. */
 export async function ligarBuffer(empresaId: string, chave: string, canalId: string): Promise<{ erro?: string }> {
-  await exigirPermissao(empresaId, "gerenciar");
+  const ctx = await exigirPermissao(empresaId, "gerenciar");
+  const demo = bloqueioDaDemo(ctx.usuario);
+  if (demo) return { erro: demo };
   try {
     const canal = (await canaisDoBuffer(chave.trim())).find((c) => c.id === canalId);
     if (!canal) return { erro: "Esse perfil não está mais nessa conta do Buffer." };

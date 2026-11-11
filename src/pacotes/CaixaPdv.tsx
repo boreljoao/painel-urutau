@@ -5,13 +5,13 @@
  * entra no carrinho na hora. Também dá para buscar pelo nome ou tocar nos mais vendidos.
  * O preço que vale é o do cadastro (o servidor recalcula); aqui é só a conta para a tela.
  */
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { FormaPagamento, Unidade } from "@/db/schema";
 import { lerReais } from "@/lib/dinheiro";
-import { MIL, UNIDADES, formatarQuantidade, limparCodigo, totalDoItem } from "@/lib/estoque";
+import { MIL, UNIDADES, formatarQuantidade, lerQuantidade, limparCodigo, totalDoItem } from "@/lib/estoque";
 import { Icone } from "@/componentes/Icone";
 
 export interface ProdutoPdv {
@@ -25,13 +25,15 @@ export interface ProdutoPdv {
   controlaEstoque: boolean;
 }
 
-type Resultado = { erro: string } | { vendaId: string; totalCentavos: number; estoqueNegativo: string[] };
+type Resultado = { erro: string } | { vendaId: string; totalCentavos: number; trocoCentavos: number | null; estoqueNegativo: string[]; repetida?: boolean };
 type Vender = (v: {
   itens: { produtoId: string | null; quantidadeMil: number }[];
   descontoCentavos: number;
   formaPagamento: FormaPagamento;
   clienteId: string | null;
   aReceber: boolean;
+  valorEntregueCentavos: number | null;
+  chave: string;
 }) => Promise<Resultado>;
 
 const FORMAS: { id: FormaPagamento | "fiado"; nome: string }[] = [
@@ -53,12 +55,15 @@ export function CaixaPdv({
   produtos,
   clientes,
   vender,
+  buscar,
   base,
   compacto = false,
 }: {
   produtos: ProdutoPdv[];
   clientes: { id: string; nome: string }[];
   vender: Vender;
+  /** Busca no catálogo inteiro (o caixa só carrega os que mais saem). */
+  buscar?: (termo: string) => Promise<ProdutoPdv[]>;
   base: string;
   /** Na Visão geral: só a busca, o carrinho e o botão de fechar. */
   compacto?: boolean;
@@ -73,12 +78,27 @@ export function CaixaPdv({
   const [cliente, setCliente] = useState("");
   const [aviso, setAviso] = useState<{ tom: "ok" | "erro"; texto: string } | null>(null);
   const [pendente, iniciar] = useTransition();
+  // Uma chave por carrinho: se o envio se repetir (clique duplo, rede caiu), o servidor devolve a mesma venda.
+  const chave = useRef("");
+  const [doServidor, setDoServidor] = useState<{ termo: string; lista: ProdutoPdv[] } | null>(null);
 
-  const encontrados = useMemo(() => {
+  const locais = useMemo(() => {
     const t = semAcento(termo.trim());
     if (!t) return produtos.slice(0, compacto ? 6 : 12);
     return produtos.filter((p) => semAcento(p.nome).includes(t) || p.codigoBarras === termo.trim() || p.sku?.toLowerCase().startsWith(t)).slice(0, 12);
   }, [termo, produtos, compacto]);
+  // O que não está entre os carregados é buscado no servidor (catálogo grande).
+  const encontrados = useMemo(() => {
+    if (!termo.trim() || doServidor?.termo !== termo.trim()) return locais;
+    const ids = new Set(locais.map((p) => p.id));
+    return [...locais, ...doServidor.lista.filter((p) => !ids.has(p.id))].slice(0, 12);
+  }, [locais, doServidor, termo]);
+  useEffect(() => {
+    const t = termo.trim();
+    if (!buscar || t.length < 2 || locais.length >= 6) return;
+    const espera = setTimeout(() => buscar(t).then((lista) => setDoServidor({ termo: t, lista })), 250);
+    return () => clearTimeout(espera);
+  }, [termo, locais.length, buscar]);
 
   const adicionar = (p: ProdutoPdv, quantidadeMil = MIL) => {
     setLinhas((ls) => {
@@ -92,27 +112,50 @@ export function CaixaPdv({
   };
 
   // Enter: código de barras ou SKU exato entra direto; se a busca só achou um, entra esse.
-  const enter = () => {
+  const enter = async () => {
     const codigo = limparCodigo(termo);
     if (!codigo) return;
     const exato = produtos.find((p) => p.codigoBarras === codigo || p.sku === codigo);
     if (exato) return adicionar(exato);
     if (encontrados.length === 1) return adicionar(encontrados[0]);
+    if (buscar) {
+      const lista = await buscar(codigo);
+      const achado = lista.find((p) => p.codigoBarras === codigo || p.sku === codigo) ?? (lista.length === 1 ? lista[0] : null);
+      if (achado) return adicionar(achado);
+      setDoServidor({ termo: termo.trim(), lista });
+      if (lista.length) return setAviso({ tom: "erro", texto: "Escolha o produto na lista." });
+    }
     setAviso({ tom: "erro", texto: /^\d{8,14}$/.test(codigo) ? `Código ${codigo} não cadastrado.` : "Escolha o produto na lista." });
   };
 
   const mudarQtd = (id: string, delta: number) =>
     setLinhas((ls) => ls.flatMap((l) => (l.produto.id !== id ? [l] : l.quantidadeMil + delta <= 0 ? [] : [{ ...l, quantidadeMil: l.quantidadeMil + delta }])));
+  // Quantidade digitada (12 camisetas de uma vez, 0,350 kg de queijo). Inválida volta ao que era.
+  const definirQtd = (id: string, texto: string) => {
+    setLinhas((ls) =>
+      ls.flatMap((l) => {
+        if (l.produto.id !== id) return [l];
+        const q = lerQuantidade(texto, l.produto.unidade);
+        if (q === 0) return [];
+        return [q && q > 0 ? { ...l, quantidadeMil: q } : l];
+      }),
+    );
+  };
 
   const subtotal = linhas.reduce((s, l) => s + totalDoItem(l.quantidadeMil, l.produto.precoCentavos), 0);
   const descontoCentavos = Math.min(subtotal, Math.max(0, lerReais(desconto) ?? 0));
   const total = subtotal - descontoCentavos;
-  const recebidoCentavos = lerReais(recebido);
-  const troco = forma === "dinheiro" && recebidoCentavos != null && recebidoCentavos >= total ? recebidoCentavos - total : null;
+  // Dinheiro: "Entregue" é o que o cliente deu. Vazio = valor exato. Menos que o total não fecha.
+  const entregue = forma === "dinheiro" && recebido.trim() ? lerReais(recebido) : null;
+  const entregueInvalido = forma === "dinheiro" && recebido.trim() !== "" && (entregue == null || entregue < 0);
+  const falta = entregue != null && entregue < total ? total - entregue : 0;
+  const troco = entregue != null && entregue >= total ? entregue - total : null;
   const faltaCliente = forma === "fiado" && !cliente;
+  const bloqueio = faltaCliente ? "Escolha o cliente do fiado." : entregueInvalido ? "Valor entregue inválido. Exemplo: 50,00" : falta ? `Faltam ${reais(falta)} para fechar.` : null;
 
   const fechar = () => {
-    if (!linhas.length || pendente || faltaCliente) return;
+    if (!linhas.length || pendente || bloqueio) return;
+    if (!chave.current) chave.current = crypto.randomUUID();
     iniciar(async () => {
       const r = await vender({
         itens: linhas.map((l) => ({ produtoId: l.produto.id, quantidadeMil: l.quantidadeMil })),
@@ -120,10 +163,14 @@ export function CaixaPdv({
         formaPagamento: forma === "fiado" ? "outro" : forma,
         clienteId: cliente || null,
         aReceber: forma === "fiado",
+        valorEntregueCentavos: entregue,
+        chave: chave.current,
       });
+      // Erro: o carrinho fica como está para corrigir e tentar de novo (com a mesma chave).
       if ("erro" in r) return setAviso({ tom: "erro", texto: r.erro });
       const negativo = r.estoqueNegativo.length ? ` Atenção: ${r.estoqueNegativo.join(", ")} ficou com estoque negativo.` : "";
-      setAviso({ tom: "ok", texto: `Venda de ${reais(r.totalCentavos)} registrada${troco ? ` · troco ${reais(troco)}` : ""}.${negativo}` });
+      setAviso({ tom: "ok", texto: `Venda de ${reais(r.totalCentavos)} registrada${r.trocoCentavos ? ` · troco ${reais(r.trocoCentavos)}` : ""}.${negativo}` });
+      chave.current = "";
       setLinhas([]);
       setDesconto("");
       setRecebido("");
@@ -135,6 +182,7 @@ export function CaixaPdv({
   };
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className={`pdv${compacto ? " compacto" : ""}`}>
       <div className="pdv-busca">
         <label className="pdv-campo">
@@ -147,7 +195,7 @@ export function CaixaPdv({
               if (e.key === "Enter") {
                 e.preventDefault();
                 if (e.ctrlKey || e.metaKey) fechar();
-                else enter();
+                else void enter();
               }
             }}
             placeholder="Código de barras ou nome do produto"
@@ -188,7 +236,14 @@ export function CaixaPdv({
         <header>
           <h3>Venda atual</h3>
           {linhas.length > 0 && (
-            <button type="button" className="botao-texto-perigo" onClick={() => setLinhas([])}>
+            <button
+              type="button"
+              className="botao-texto-perigo"
+              onClick={() => {
+                setLinhas([]);
+                chave.current = "";
+              }}
+            >
               Limpar
             </button>
           )}
@@ -210,14 +265,29 @@ export function CaixaPdv({
                   <span className="pdv-item">
                     <strong>{l.produto.nome}</strong>
                     <small>
-                      {formatarQuantidade(l.quantidadeMil, l.produto.unidade)} × {reais(l.produto.precoCentavos)}
+                      {UNIDADES[l.produto.unidade].curto} × {reais(l.produto.precoCentavos)}
                     </small>
                   </span>
                   <span className="pdv-qtd">
-                    <button type="button" aria-label="Menos" onClick={() => mudarQtd(l.produto.id, -passo)}>
+                    <button type="button" aria-label={`Diminuir quantidade de ${l.produto.nome}`} onClick={() => mudarQtd(l.produto.id, -passo)}>
                       −
                     </button>
-                    <button type="button" aria-label="Mais" onClick={() => mudarQtd(l.produto.id, passo)}>
+                    <input
+                      key={l.quantidadeMil}
+                      defaultValue={formatarQuantidade(l.quantidadeMil, l.produto.unidade, false)}
+                      inputMode={fracionada ? "decimal" : "numeric"}
+                      aria-label={`Quantidade de ${l.produto.nome}`}
+                      onFocus={(e) => e.target.select()}
+                      onBlur={(e) => definirQtd(l.produto.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                          busca.current?.focus();
+                        }
+                      }}
+                    />
+                    <button type="button" aria-label={`Aumentar quantidade de ${l.produto.nome}`} onClick={() => mudarQtd(l.produto.id, passo)}>
                       +
                     </button>
                   </span>
@@ -245,9 +315,10 @@ export function CaixaPdv({
         </div>
         {forma === "dinheiro" && (
           <label className="pdv-linha">
-            <span>Recebido (R$)</span>
-            <input value={recebido} onChange={(e) => setRecebido(e.target.value)} inputMode="decimal" placeholder="0,00" />
+            <span>Entregue pelo cliente (R$)</span>
+            <input value={recebido} onChange={(e) => setRecebido(e.target.value)} inputMode="decimal" placeholder={`${(total / 100).toFixed(2).replace(".", ",")} (exato)`} aria-invalid={!!falta || entregueInvalido} />
             {troco != null && <b className="pdv-troco">Troco {reais(troco)}</b>}
+            {falta > 0 && <b className="pdv-falta">Faltam {reais(falta)}</b>}
           </label>
         )}
         {forma === "fiado" && (
@@ -268,9 +339,14 @@ export function CaixaPdv({
           <span>{descontoCentavos ? `Subtotal ${reais(subtotal)} · desconto ${reais(descontoCentavos)}` : `${linhas.length} ${linhas.length === 1 ? "item" : "itens"}`}</span>
           <strong>{reais(total)}</strong>
         </div>
-        <button type="button" className="botao pdv-fechar" disabled={!linhas.length || pendente || faltaCliente} onClick={fechar}>
+        <button type="button" className="botao pdv-fechar" disabled={!linhas.length || pendente || !!bloqueio} onClick={fechar} aria-describedby={bloqueio ? "pdv-bloqueio" : undefined}>
           {pendente ? "Registrando…" : `Fechar venda · ${reais(total)}`}
         </button>
+        {linhas.length > 0 && bloqueio && (
+          <p id="pdv-bloqueio" className="pdv-bloqueio">
+            {bloqueio}
+          </p>
+        )}
         <AnimatePresence>
           {aviso && (
             <motion.p
@@ -287,5 +363,6 @@ export function CaixaPdv({
         </AnimatePresence>
       </div>
     </div>
+    </MotionConfig>
   );
 }
