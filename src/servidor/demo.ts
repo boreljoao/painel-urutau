@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, eq, gte, inArray, like, lt, sql } from "drizzle-orm";
 import { obterDb } from "@/db";
-import { type Perfil, agendamentos, categoriasDespesa, clientes, despesas, empresaPainel, empresaUsuarios, empresas, fontesReceita, usuarios, veiculos, vendas } from "@/db/schema";
+import { type Perfil, agendamentos, categoriasDespesa, clientes, contatosClientes, despesas, empresaPainel, empresaUsuarios, empresas, fontesReceita, usuarios, veiculos, vendas } from "@/db/schema";
 import { DOMINIO_DEMO, HORAS_DEMO } from "@/lib/demo";
 import { diaDaSemana, diasNoMes, hoje, mesAtual, somarDias, somarMeses } from "@/lib/datas";
 import { hashSenha } from "@/lib/servidor/auth";
@@ -241,6 +241,7 @@ export async function criarDemo(perfil: Perfil): Promise<{ usuarioId: string; em
   }
   const vendasGravadas = novasVendas.length ? await db.insert(vendas).values(novasVendas).returning({ id: vendas.id, data: vendas.data, valor: vendas.valorCentavos, descricao: vendas.descricao, fonte: vendas.fonteReceitaId, clienteId: vendas.clienteId }) : [];
   if (novasDespesas.length) await db.insert(despesas).values(novasDespesas);
+  await montarRecuperacaoDemo(empresaId, u.id, listaClientes, vendasGravadas, hojeData);
 
   const daAgenda = agendaDoPacote(perfil);
   if (daAgenda && x.agenda) {
@@ -294,6 +295,52 @@ const PRODUTOS_LOJA: [string, string, number, number, number, number][] = [
   ["Cinto fivela dourada", "Acessórios", 69.9, 22, 10, 3],
   ["Brinco argola média", "Acessórios", 39.9, 11, 22, 5],
 ];
+
+/**
+ * Clientes para chamar: os quatro primeiros clientes param de comprar há uns dois meses (as vendas
+ * recentes deles ficam sem cliente) e dois contatos já feitos mostram "Aguardando" e "Comprou".
+ */
+async function montarRecuperacaoDemo(
+  empresaId: string,
+  usuarioId: string,
+  lista: { id: string; nome: string }[],
+  gravadas: { id: string; data: string; clienteId: string | null }[],
+  hojeData: string,
+) {
+  if (lista.length < 6) return;
+  const db = obterDb();
+  const sumidos = lista.slice(0, 4).map((c) => c.id);
+  await db
+    .update(vendas)
+    .set({ clienteId: null })
+    .where(and(eq(vendas.empresaId, empresaId), inArray(vendas.clienteId, sumidos), gte(vendas.data, somarDias(hojeData, -62))));
+  const quando = (dias: number) => new Date(Date.now() - dias * 86_400_000);
+  const [esperando, voltou] = [lista[4], lista[5]];
+  await db.insert(contatosClientes).values({
+    empresaId,
+    clienteId: esperando.id,
+    motivo: "ritmo",
+    porque: "Comprava toda semana; já fazia 2 meses sem vir.",
+    mensagem: "",
+    criadoPor: usuarioId,
+    criadoEm: quando(3),
+  });
+  // A venda que veio do contato: uma venda dele depois do dia do contato (se a demo sorteou alguma).
+  const desde = somarDias(hojeData, -12);
+  const venda = gravadas.filter((v) => v.clienteId === voltou.id && v.data >= desde).sort((a, b) => a.data.localeCompare(b.data))[0];
+  await db.insert(contatosClientes).values({
+    empresaId,
+    clienteId: voltou.id,
+    motivo: "sumiu",
+    porque: "Comprou duas vezes; a última há 3 meses.",
+    mensagem: "",
+    resultado: venda ? "comprou" : "respondeu",
+    vendaId: venda?.id ?? null,
+    criadoPor: usuarioId,
+    criadoEm: quando(12),
+    resultadoEm: quando(8),
+  });
+}
 
 /** Loja de exemplo: produtos com código de barras e algumas vendas no caixa de hoje. */
 async function montarEstoqueDemo(empresaId: string, usuarioId: string) {

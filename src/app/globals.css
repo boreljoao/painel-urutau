@@ -4275,3 +4275,32 @@ ul.lista-escolha,
 .estoque-paginas span { margin-right: auto; }
 .janela-aviso { margin: 0 20px 4px; padding: 10px 12px; border-radius: 10px; background: #fff4e0; color: #8a4b08; font-size: 13px; }
 .lembrete-confirmar { display: inline-flex; gap: 6px; }
+
+/* ─── Clientes para chamar ─────────────────────────────────────────────── */
+.recuperar { display: grid; gap: 16px; }
+.rec-grade { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.rec-lista { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.rec-cartao { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--linha); border-radius: 14px; background: var(--superficie); }
+.rec-cartao > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.rec-quem { display: grid; min-width: 0; }
+.rec-quem small { color: var(--suave); font-size: 12px; }
+.rec-porque { margin: 0; font-weight: 600; }
+.rec-mensagem { display: grid; gap: 4px; }
+.rec-mensagem span { color: var(--suave); font-size: 12px; }
+.rec-mensagem textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--linha); border-radius: 10px; background: var(--tom); font: inherit; font-size: 14px; line-height: 1.45; resize: vertical; }
+.rec-acoes, .rec-resultados, .rec-vendas { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rec-acoes .botao-texto-perigo { margin-left: auto; }
+.rec-vendas > span { width: 100%; color: var(--suave); font-size: 13px; }
+.rec-espera { display: grid; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--linha); }
+.rec-espera:last-child { border-bottom: 0; }
+.pilula.rec-motivo-ritmo { background: #fff4e0; color: #b45309; }
+.pilula.rec-motivo-sumiu { background: var(--tom-2); color: var(--suave); }
+.pilula.rec-res-comprou, .pilula.rec-res-agendou { background: #e6f5ec; color: #18794a; }
+.pilula.rec-res-respondeu { background: #e8f0fe; color: #1d4ed8; }
+.pilula.rec-res-sem_interesse { background: var(--tom-2); color: var(--suave); }
+.rec-feitos ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rec-feitos li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--linha); }
+.rec-feitos li > span:first-child { display: grid; }
+.rec-feitos small { color: var(--suave); font-size: 12px; }
+.rec-rodape { margin: 0; }
+@media (max-width: 1000px) { .rec-grade { grid-template-columns: 1fr; } }

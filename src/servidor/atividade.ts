@@ -22,6 +22,8 @@ export interface EventoOperacao {
 const TEXTO: Record<string, { texto: string; icone: NomeIcone; link?: (id: string | null) => string | null }> = {
   "venda.registrar": { texto: "Venda registrada", icone: "carrinho", link: (id) => (id ? `vendas?editar=${id}` : "vendas") },
   "venda.pdv": { texto: "Venda no caixa", icone: "carrinho", link: () => "caixa" },
+  "recuperacao.contato": { texto: "Cliente chamado de volta", icone: "telefone", link: () => "recuperar" },
+  "recuperacao.resultado": { texto: "Resultado de contato marcado", icone: "check", link: () => "recuperar" },
   "venda.conferir": { texto: "Venda conferida", icone: "check", link: () => "vendas" },
   "venda.receber": { texto: "Recebimento confirmado", icone: "vendas", link: () => "vendas" },
   "venda.estornar": { texto: "Venda estornada", icone: "alerta", link: () => "vendas" },
@@ -45,7 +47,7 @@ const TEXTO: Record<string, { texto: string; icone: NomeIcone; link?: (id: strin
   "cliente.criar": { texto: "Cliente cadastrado", icone: "pessoa", link: () => "clientes" },
 };
 
-const PREFIXOS = ["venda.", "despesa.", "estoque.", "agenda.", "patio.", "caixa.", "cliente.criar", "conta.pagar", "parcela.pagar"];
+const PREFIXOS = ["venda.", "despesa.", "estoque.", "agenda.", "patio.", "caixa.", "recuperacao.contato", "recuperacao.resultado", "cliente.criar", "conta.pagar", "parcela.pagar"];
 
 export async function atividadeRecente(db: BancoDeDados, empresaId: string, limite = 6): Promise<EventoOperacao[]> {
   const linhas = await db

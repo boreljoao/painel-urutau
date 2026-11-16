@@ -241,6 +241,8 @@ export const clientes = pgTable(
     documento: text("documento"),
     observacao: text("observacao").notNull().default(""),
     origem: origemClienteEnum("origem").notNull().default("manual"),
+    /** Pediu para não receber mensagens (respondeu SAIR, pediu à equipe): fica fora de qualquer contato. */
+    naoContatarEm: timestamp("nao_contatar_em", { withTimezone: true }),
     criadoPor: uuid("criado_por").references(() => usuarios.id, { onDelete: "set null" }),
     criadoEm: criadoEm(),
     atualizadoEm: atualizadoEm(),
@@ -333,6 +335,42 @@ export const vendas = pgTable(
     check("vendas_troco", sql`${t.trocoCentavos} is null or (${t.trocoCentavos} >= 0 and ${t.valorEntregueCentavos} = ${t.valorCentavos} + ${t.trocoCentavos})`),
     index("vendas_empresa_data_idx").on(t.empresaId, t.data),
     index("vendas_empresa_receb_idx").on(t.empresaId, t.dataRecebimento),
+  ],
+);
+
+// ─── Recuperar clientes ──────────────────────────────────────────────────────
+
+export const resultadoContatoEnum = pgEnum("resultado_contato", ["enviado", "respondeu", "agendou", "comprou", "sem_interesse"]);
+
+/**
+ * Cada mensagem de "volta aqui" que a equipe mandou e o que deu. A venda só conta como resultado
+ * quando alguém liga a venda ao contato de propósito: venda que viria de qualquer jeito não infla
+ * o número da campanha.
+ */
+export const contatosClientes = pgTable(
+  "contatos_clientes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    empresaId: uuid("empresa_id")
+      .notNull()
+      .references(() => empresas.id, { onDelete: "cascade" }),
+    clienteId: uuid("cliente_id").notNull(),
+    /** "ritmo" (passou do intervalo de sempre) ou "sumiu" (comprou pouco e não voltou). */
+    motivo: text("motivo").notNull().default(""),
+    porque: text("porque").notNull().default(""),
+    mensagem: text("mensagem").notNull().default(""),
+    resultado: resultadoContatoEnum("resultado").notNull().default("enviado"),
+    vendaId: uuid("venda_id").references(() => vendas.id, { onDelete: "set null" }),
+    criadoPor: uuid("criado_por").references(() => usuarios.id, { onDelete: "set null" }),
+    criadoEm: criadoEm(),
+    resultadoEm: timestamp("resultado_em", { withTimezone: true }),
+  },
+  (t) => [
+    foreignKey({ name: "contatos_cliente_fk", columns: [t.empresaId, t.clienteId], foreignColumns: [clientes.empresaId, clientes.id] }).onDelete("cascade"),
+    index("contatos_empresa_idx").on(t.empresaId, t.criadoEm),
+    index("contatos_cliente_idx").on(t.empresaId, t.clienteId, t.criadoEm),
+    // Uma venda conta para um contato só.
+    uniqueIndex("contatos_venda_uq").on(t.vendaId).where(sql`${t.vendaId} is not null`),
   ],
 );
 

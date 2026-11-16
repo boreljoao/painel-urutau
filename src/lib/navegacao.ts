@@ -55,6 +55,8 @@ export function itensDoRamo({ perfil, papel, modulos }: Omit<Entrada, "config">)
       : []),
     podeVer("ver_lancamentos") && { id: "vendas", rota: "vendas", nome: pacote.vocab.vendas, icone: "vendas", secao: "operacao" },
     podeVer("ver_clientes") && { id: "clientes", rota: "clientes", nome: pacote.vocab.clientes, icone: "clientes", secao: "operacao" },
+    // Recuperar clientes: quem parou de comprar e uma mensagem pronta para a equipe revisar.
+    podeVer("lancar") && { id: "recuperar", rota: "recuperar", nome: `${pacote.vocab.clientes} para chamar`, icone: "telefone", secao: "operacao" },
     modulos.has("whatsapp") && podeVer("ver_clientes") && { id: "whatsapp", rota: "whatsapp", nome: "WhatsApp", icone: "whatsapp", secao: "operacao" },
     ...pacote.abas
       .filter((a) => perfil !== "consultorio" || a.rota !== "agenda")
@@ -78,7 +80,7 @@ export function itensDoRamo({ perfil, papel, modulos }: Omit<Entrada, "config">)
   const lista = itens.filter((i): i is ItemNav => !!i);
   if (perfil !== "consultorio") return lista;
   // Consultório: a rotina gira em torno da agenda. Menu enxuto, como a psicóloga usa no dia a dia.
-  const ordem = ["agenda", "clientes", "confirmacoes", "financeiro", "whatsapp", "inicio", "vendas", "pacotes", "impostos", "instagram"];
+  const ordem = ["agenda", "clientes", "confirmacoes", "recuperar", "financeiro", "whatsapp", "inicio", "vendas", "pacotes", "impostos", "instagram"];
   const escondidos = new Set(["inicio", "vendas", "pacotes", "impostos"]);
   const confirmacoes: ItemNav | null = podeVer("ver_clientes") && temAgenda ? { id: "confirmacoes", rota: "confirmacoes", nome: "Confirmações", icone: "check", secao: "operacao" } : null;
   return [...lista, ...(confirmacoes ? [confirmacoes] : [])]

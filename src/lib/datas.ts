@@ -39,6 +39,15 @@ export function somarDias(data: Data, n: number): Data {
   return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
+/** Quantos dias de `de` até `ate` (negativo se `ate` vem antes). */
+export function diasEntre(de: Data, ate: Data): number {
+  const utc = (d: Data) => {
+    const [a, m, dia] = d.split("-").map(Number);
+    return Date.UTC(a, m - 1, dia);
+  };
+  return Math.round((utc(ate) - utc(de)) / 86_400_000);
+}
+
 /** Intervalo [inicio, fim) do mês. */
 export function intervaloDoMes(mes: Mes): { inicio: Data; fim: Data } {
   return { inicio: `${mes}-01`, fim: `${somarMeses(mes, 1)}-01` };
