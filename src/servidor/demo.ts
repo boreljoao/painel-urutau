@@ -2,12 +2,13 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, eq, gte, inArray, like, lt, sql } from "drizzle-orm";
 import { obterDb } from "@/db";
-import { type Perfil, agendamentos, categoriasDespesa, clientes, contatosClientes, despesas, empresaPainel, empresaUsuarios, empresas, fontesReceita, usuarios, veiculos, vendas } from "@/db/schema";
+import { type Perfil, agendamentos, categoriasDespesa, clientes, contatosClientes, despesas, negociosImoveis, empresaPainel, empresaUsuarios, empresas, fontesReceita, usuarios, veiculos, vendas } from "@/db/schema";
 import { DOMINIO_DEMO, HORAS_DEMO } from "@/lib/demo";
 import { diaDaSemana, diasNoMes, hoje, mesAtual, somarDias, somarMeses } from "@/lib/datas";
 import { hashSenha } from "@/lib/servidor/auth";
 import { agendaDoPacote } from "@/pacotes/catalogo";
 import { registrarVendaCaixa, salvarProduto } from "@/lib/servidor/estoque";
+import { alugueisDoMes, fecharNegocio, moverNegocio, mudarStatusImovel, receberAluguel, repassarAluguel, salvarContrato, salvarImovel, salvarNegocio } from "@/lib/servidor/imobiliaria";
 import { montarEmpresa } from "./empresa-nova";
 
 type Forma = "pix" | "credito" | "debito" | "dinheiro" | "boleto" | "transferencia";
@@ -29,6 +30,33 @@ const R = (n: number) => Math.round(n * 100);
 
 /** Um exemplo por ramo: números de uma empresa pequena plausível, sem nada de real. */
 const EXEMPLOS: Partial<Record<Perfil, Exemplo>> = {
+  imobiliaria: {
+    empresa: "Orla Imóveis",
+    cidade: "Maricá",
+    uf: "RJ",
+    regime: "simples",
+    vendas: {
+      "Comissão de venda": { porMes: 2, valor: [14000, 42000], formas: ["transferencia"], descricoes: ["Comissão de venda · apartamento", "Comissão de venda · casa", "Comissão de venda · terreno"] },
+      "Taxa de administração": { porMes: 6, valor: [180, 440], formas: ["pix"], descricoes: ["Taxa de administração"] },
+      "Comissão de locação": { porMes: 2, valor: [1800, 3600], formas: ["pix", "transferencia"], descricoes: ["Comissão de locação"] },
+      "Avaliações e laudos": { porMes: 2, valor: [450, 900], formas: ["pix"], descricoes: ["Avaliação de imóvel", "Laudo para financiamento"] },
+    },
+    contas: [
+      ["Portais de anúncio", "Planos dos portais imobiliários", 1290, 10],
+      ["Comissão de corretores", "Comissões dos corretores", 9000, 5],
+      ["Fotos e vídeos dos imóveis", "Fotógrafo e drone", 700, 18],
+      ["contas_fixas", "Aluguel da loja", 3800, 5],
+      ["marketing", "Impulsionamento no Instagram", 800, 12],
+      ["funcionarios", "Secretária", 2300, 5],
+      ["pro_labore", "Pró-labore", 7000, 5],
+    ],
+    clientes: [
+      "Helena Barcelos", "Roberto Antunes", "Cláudia Menezes", "Jorge Farias", "Marlene Couto", "Otávio Pires", "Fernanda Lacerda", "Eduardo Prates", "Aline Moraes", "Gustavo Teles",
+      "Viviane Rangel", "Diego Sampaio", "Patrícia Leal", "Comercial Lagoa Ltda.", "Bruno Castanheira", "Larissa Fontes",
+      "Thaís Monteiro", "Rodrigo Vilela", "Natália Brandão", "André Quintela", "Clínica Vida Plena", "Família Okamoto", "Sandra Veloso", "Felipe e Carol", "Márcio Tavares", "Joana Ribas", "Leonardo Assis", "Priscila Gomes",
+    ],
+    agenda: { valor: 0, profissional: ["Renata", "Marcelo", "Júlia"], servicos: ["Visita ao imóvel", "Visita ao imóvel", "Visita ao imóvel", "Visita ao imóvel", "Captação", "Avaliação", "Assinatura de contrato"] },
+  },
   consultorio: {
     empresa: "Consultório Ana Lima",
     cidade: "Niterói",
@@ -275,7 +303,156 @@ export async function criarDemo(perfil: Perfil): Promise<{ usuarioId: string; em
   }
   if (perfil === "varejo") await montarEstoqueDemo(empresaId, u.id);
   if (perfil === "revenda_veiculos") await montarPatioDemo(empresaId, u.id, fontes, vendasGravadas, hojeData);
+  if (perfil === "imobiliaria") await montarImobiliariaDemo(empresaId, u.id, listaClientes, hojeData);
   return { usuarioId: u.id, empresaId };
+}
+
+// Imóveis da demonstração: [código, título, tipo, finalidade, bairro, cidade, área, quartos, suítes, banheiros, vagas, venda, aluguel, condomínio, destaques, situação, dias na carteira, exclusivo, corretor]
+type LinhaImovel = [string, string, string, "venda" | "aluguel" | "venda_aluguel", string, string, number, number, number, number, number, number | null, number | null, number | null, string[], "disponivel" | "reservado" | "alugado", number, boolean, string];
+const IMOVEIS_DEMO: LinhaImovel[] = [
+  ["CO-0012", "Cobertura duplex com piscina e vista para o mar", "cobertura", "venda", "Ponta Negra", "Maricá", 210, 4, 3, 4, 3, 1_480_000, null, 1_350, ["Vista mar", "Piscina privativa", "Churrasqueira", "Varanda gourmet"], "disponivel", 38, true, "Renata"],
+  ["CC-0031", "Casa em condomínio a 300 m da praia", "casa_condominio", "venda", "Itaipuaçu", "Maricá", 160, 3, 1, 3, 2, 690_000, null, 420, ["Condomínio com lazer", "Quintal", "Aceita financiamento"], "disponivel", 12, false, "Marcelo"],
+  ["AP-0142", "Apartamento 3 quartos com varanda gourmet", "apartamento", "venda", "Icaraí", "Niterói", 98, 3, 1, 2, 1, 845_000, null, 1_100, ["Varanda gourmet", "Lazer completo", "A duas quadras da praia"], "reservado", 64, true, "Júlia"],
+  ["CA-0088", "Casa térrea com piscina e área gourmet", "casa", "venda", "Barra de Maricá", "Maricá", 240, 4, 2, 3, 4, 980_000, null, null, ["Piscina", "Área gourmet", "Terreno de 600 m²"], "disponivel", 121, false, "Renata"],
+  ["AP-0156", "Apartamento 2 quartos novo, primeira locação", "apartamento", "aluguel", "Centro", "Maricá", 62, 2, 1, 2, 1, null, 2_300, 380, ["Primeira locação", "Aceita pet", "Portaria 24h"], "disponivel", 6, false, "Marcelo"],
+  ["CA-0091", "Casa 3 quartos com quintal amplo", "casa", "venda_aluguel", "São José do Imbassaí", "Maricá", 140, 3, 1, 2, 2, 420_000, 2_800, null, ["Quintal", "Aceita pet", "Rua tranquila"], "disponivel", 47, false, "Júlia"],
+  ["TE-0017", "Terreno plano de 480 m² perto da Lagoa", "terreno", "venda", "Araçatiba", "Maricá", 480, 0, 0, 0, 0, 185_000, null, null, ["Plano", "Escritura ok", "Rua asfaltada"], "disponivel", 156, false, "Marcelo"],
+  ["SA-0009", "Sala comercial na Rua Abreu Rangel", "sala", "aluguel", "Centro", "Maricá", 38, 0, 0, 1, 1, null, 1_900, 290, ["Recepção", "Ar-condicionado", "Vaga coberta"], "disponivel", 22, false, "Renata"],
+  ["AP-0161", "Apartamento 1 quarto mobiliado perto da praia", "apartamento", "aluguel", "Piratininga", "Niterói", 48, 1, 0, 1, 1, null, 2_100, 450, ["Mobiliado", "A 2 quadras da praia"], "reservado", 9, false, "Júlia"],
+  ["CC-0035", "Casa 4 suítes em condomínio fechado", "casa_condominio", "venda", "Camboinhas", "Niterói", 320, 4, 4, 5, 4, 2_350_000, null, 1_800, ["Condomínio fechado", "Piscina", "Home office", "Energia solar"], "disponivel", 29, true, "Renata"],
+  // Alugados (com contrato)
+  ["AP-0118", "Apartamento 2 quartos com vista para a Lagoa", "apartamento", "aluguel", "Centro", "Maricá", 70, 2, 1, 2, 1, null, 2_500, 420, ["Vista lagoa"], "alugado", 400, false, "Marcelo"],
+  ["CA-0064", "Casa 3 quartos com garagem", "casa", "aluguel", "Itaipuaçu", "Maricá", 130, 3, 1, 2, 2, null, 3_200, null, ["Garagem para 2 carros"], "alugado", 520, false, "Júlia"],
+  ["AP-0122", "Apartamento 3 quartos com lazer completo", "apartamento", "aluguel", "Icaraí", "Niterói", 105, 3, 1, 2, 1, null, 4_200, 1_250, ["Lazer completo"], "alugado", 610, false, "Renata"],
+  ["LO-0004", "Loja de rua com 2 frentes", "loja", "aluguel", "Centro", "Maricá", 85, 0, 0, 1, 0, null, 5_500, null, ["Esquina", "Duas frentes"], "alugado", 700, false, "Marcelo"],
+  ["AP-0130", "Apartamento 2 quartos perto do comércio", "apartamento", "aluguel", "Flamengo", "Maricá", 58, 2, 0, 1, 1, null, 1_800, 280, ["Perto de tudo"], "alugado", 330, false, "Júlia"],
+  ["CA-0071", "Casa de praia com varanda", "casa", "aluguel", "Ponta Negra", "Maricá", 110, 3, 1, 2, 2, null, 3_600, null, ["Vista mar", "Varanda"], "alugado", 450, false, "Renata"],
+];
+
+// Contratos dos alugados: [código, inquilino (índice do cliente), proprietário, meses desde o início, meses de contrato, dia de vencimento, garantia]
+const CONTRATOS_DEMO: [string, number, number, number, number, number, string][] = [
+  ["AP-0118", 10, 0, 11, 30, 5, "Caução"],
+  ["CA-0064", 11, 1, 22, 30, 10, "Fiador"],
+  ["AP-0122", 12, 2, 28, 30, 10, "Seguro-fiança"],
+  ["LO-0004", 13, 3, 34, 36, 15, "Título de capitalização"],
+  ["AP-0130", 14, 4, 6, 30, 20, "Caução"],
+  ["CA-0071", 15, 5, 18, 30, 25, "Fiador"],
+];
+
+// Funil: [cliente (índice), código do imóvel ou null, tipo, etapa, valor, origem, corretor, procura, próximo passo, dias até o próximo passo, motivo da perda]
+const NEGOCIOS_DEMO: [number, string | null, "compra" | "locacao", "lead" | "atendimento" | "visita" | "proposta" | "fechado" | "perdido", number | null, string, string, string, string, number | null, string | null][] = [
+  [16, null, "compra", "lead", 650_000, "Portal", "Marcelo", "Casa 3 quartos em Itaipuaçu, até R$ 700 mil, financiamento", "Ligar e entender o que procura", 0, null],
+  [17, "AP-0156", "locacao", "lead", 2_300, "Instagram", "Júlia", "2 quartos no Centro, aceita pet", "Mandar a ficha e marcar visita", 1, null],
+  [18, null, "compra", "lead", null, "WhatsApp", "Renata", "Cobertura com vista mar", "Responder no WhatsApp", -1, null],
+  [19, "CC-0031", "compra", "atendimento", 690_000, "Site", "Marcelo", "Casa em condomínio perto da praia", "Simular financiamento", 2, null],
+  [20, "SA-0009", "locacao", "atendimento", 1_900, "Placa", "Renata", "Sala para consultório", "Mandar planta da sala", -2, null],
+  [21, "CA-0088", "compra", "visita", 950_000, "Indicação", "Renata", "Casa com piscina para a família", "Segunda visita com a esposa", 3, null],
+  [22, "CO-0012", "compra", "visita", 1_480_000, "Portal", "Renata", "Cobertura para morar perto da praia", "Visita sábado 10h", 4, null],
+  [23, "CA-0091", "locacao", "visita", 2_800, "Portal", "Júlia", "Casa com quintal para os cachorros", "Confirmar visita", 0, null],
+  [6, "AP-0142", "compra", "proposta", 820_000, "Indicação", "Júlia", "Apartamento em Icaraí para a filha", "Resposta do proprietário à contraproposta", 1, null],
+  [7, "CC-0035", "compra", "proposta", 2_200_000, "Site", "Renata", "Casa grande em condomínio", "Aguardar carta de crédito", 5, null],
+  [8, "AP-0161", "locacao", "proposta", 2_100, "Instagram", "Júlia", "Apartamento mobiliado por 1 ano", "Análise do seguro-fiança", 2, null],
+  [9, "TE-0017", "compra", "atendimento", 175_000, "Placa", "Marcelo", "Terreno para construir", "Levar para ver o terreno", 6, null],
+  [24, "CA-0088", "compra", "perdido", 900_000, "Portal", "Renata", "Casa com piscina", "", null, "Comprou com outra imobiliária"],
+  [25, null, "locacao", "perdido", 1_500, "WhatsApp", "Marcelo", "Kitnet no Centro", "", null, "Fora do orçamento"],
+];
+
+/** A imobiliária de exemplo: carteira, contratos com aluguéis do mês, funil e visitas ligadas aos imóveis. */
+async function montarImobiliariaDemo(empresaId: string, usuarioId: string, lista: { id: string; nome: string }[], hojeData: string) {
+  const db = obterDb();
+  const cli = (i: number) => lista[i % lista.length].id;
+  const ids = new Map<string, string>();
+  for (const [k, l] of IMOVEIS_DEMO.entries()) {
+    const [codigo, titulo, tipo, finalidade, bairro, cidade, area, quartos, suites, banheiros, vagas, venda, aluguel, condominio, destaques, , dias, exclusivo, corretor] = l;
+    const id = await salvarImovel(db, empresaId, usuarioId, null, {
+      codigo,
+      titulo,
+      tipo,
+      finalidade,
+      bairro,
+      cidade,
+      endereco: "",
+      areaM2: area,
+      quartos: quartos || null,
+      suites: suites || null,
+      banheiros: banheiros || null,
+      vagas: vagas || null,
+      precoVendaCentavos: venda ? R(venda) : null,
+      aluguelCentavos: aluguel ? R(aluguel) : null,
+      condominioCentavos: condominio ? R(condominio) : null,
+      iptuCentavos: venda ? R(Math.round(venda * 0.0035)) : null,
+      destaques,
+      fotos: [],
+      descricao: "",
+      proprietarioId: cli(k % 10),
+      corretor,
+      comissaoPcm: 6_000,
+      exclusivo,
+      captadoEm: somarDias(hojeData, -dias),
+    });
+    ids.set(codigo, id);
+    if (l[15] === "reservado") await mudarStatusImovel(db, empresaId, usuarioId, id, "reservado");
+  }
+  for (const [codigo, inq, prop, desde, duracao, dia, garantia] of CONTRATOS_DEMO) {
+    const inicio = `${somarMeses(mesAtual(), -desde)}-${String(dia).padStart(2, "0")}`;
+    const fim = `${somarMeses(mesAtual(), duracao - desde)}-${String(dia).padStart(2, "0")}`;
+    const imovel = IMOVEIS_DEMO.find((i) => i[0] === codigo)!;
+    await salvarContrato(db, empresaId, usuarioId, {
+      imovelId: ids.get(codigo)!,
+      inquilinoId: cli(inq),
+      proprietarioId: cli(prop),
+      inicio,
+      fim,
+      aluguelCentavos: R(imovel[12]!),
+      taxaAdmPcm: codigo.startsWith("LO") ? 8_000 : 10_000,
+      diaVencimento: dia,
+      indice: codigo === "AP-0130" ? "IPCA" : "IGP-M",
+      garantia,
+    });
+  }
+  // Aluguéis do mês: os que já venceram foram pagos (e quase todos repassados), menos um atrasado.
+  const dia = Number(hojeData.slice(8));
+  const doMes = await alugueisDoMes(db, empresaId, mesAtual());
+  let atrasou = false;
+  for (const a of doMes) {
+    if (a.diaVencimento > dia) continue;
+    if (!atrasou && a.diaVencimento < dia) {
+      atrasou = true;
+      continue;
+    }
+    await receberAluguel(db, empresaId, usuarioId, a.aluguel.id, somarDias(hojeData, -Math.max(0, Math.min(2, dia - a.diaVencimento))));
+    if (a.diaVencimento < dia - 2) await repassarAluguel(db, empresaId, usuarioId, a.aluguel.id, hojeData);
+  }
+  // Funil.
+  for (const [c, codigo, tipo, etapa, valor, origem, corretor, procura, passo, quando, motivo] of NEGOCIOS_DEMO) {
+    const id = await salvarNegocio(db, empresaId, usuarioId, null, {
+      clienteId: cli(c),
+      imovelId: codigo ? (ids.get(codigo) ?? null) : null,
+      tipo,
+      valorCentavos: valor ? R(valor) : null,
+      origem,
+      corretor,
+      procura,
+      proximoPasso: passo,
+      proximoEm: quando == null ? null : somarDias(hojeData, quando),
+    });
+    if (etapa !== "lead") await moverNegocio(db, empresaId, usuarioId, id, etapa === "fechado" ? "proposta" : etapa, motivo);
+  }
+  // Cada um está na etapa há um tempo diferente (um funil de verdade não nasce todo hoje).
+  await db
+    .update(negociosImoveis)
+    .set({ etapaDesde: sql`now() - make_interval(days => (1 + floor(random() * 20))::int)` })
+    .where(eq(negociosImoveis.empresaId, empresaId));
+  // Dois fechamentos recentes: uma venda (comissão de 6%) e uma locação (primeiro aluguel).
+  const fechadoVenda = await salvarNegocio(db, empresaId, usuarioId, null, { clienteId: cli(26), imovelId: null, tipo: "compra", valorCentavos: R(560_000), origem: "Indicação", corretor: "Marcelo", procura: "Apartamento 2 quartos", proximoPasso: "", proximoEm: null });
+  await fecharNegocio(db, empresaId, usuarioId, fechadoVenda, { valorCentavos: R(560_000), comissaoPcm: 6_000, data: somarDias(hojeData, -4), recebido: false });
+  const fechadoLoc = await salvarNegocio(db, empresaId, usuarioId, null, { clienteId: cli(27), imovelId: null, tipo: "locacao", valorCentavos: R(2_400), origem: "Portal", corretor: "Júlia", procura: "Casa com quintal", proximoPasso: "", proximoEm: null });
+  await fecharNegocio(db, empresaId, usuarioId, fechadoLoc, { valorCentavos: R(2_400), comissaoPcm: 100_000, data: somarDias(hojeData, -9), recebido: true });
+  // As visitas da agenda ganham imóvel (os disponíveis e reservados).
+  const visitaveis = IMOVEIS_DEMO.filter((i) => i[15] !== "alugado").map((i) => ids.get(i[0])!);
+  const visitas = await db.select({ id: agendamentos.id }).from(agendamentos).where(and(eq(agendamentos.empresaId, empresaId), eq(agendamentos.servico, "Visita ao imóvel")));
+  // Uns imóveis atraem bem mais visitas que outros (como na vida real).
+  for (const v of visitas) await db.update(agendamentos).set({ imovelId: visitaveis[Math.floor(Math.random() ** 2 * visitaveis.length)] }).where(eq(agendamentos.id, v.id));
 }
 
 // Nome, categoria, preço, custo, saldo, mínimo. Alguns acabando, um zerado: o "Estoque crítico" tem o que mostrar.

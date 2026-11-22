@@ -46,6 +46,8 @@ interface Opcoes {
   rotuloServico?: string;
   /** Revenda: os carros do pátio, para ligar a visita a um deles. */
   veiculos?: { id: string; nome: string }[];
+  /** Imobiliária: o imóvel da visita. */
+  imoveis?: { id: string; nome: string }[];
   /** Na revenda não há sessão online. */
   semOnline?: boolean;
 }
@@ -163,6 +165,18 @@ function FormAgendamento(o: Opcoes & { salvo: (t: string, v?: Record<string, str
           <select name="veiculoId" defaultValue={v.veiculoId ?? ""}>
             <option value="">Nenhum carro específico</option>
             {o.veiculos.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </Campo>
+      )}
+      {!bloquear && o.imoveis && (
+        <Campo rotulo="Imóvel" erro={erros.imovelId} largo>
+          <select name="imovelId" defaultValue={v.imovelId ?? ""}>
+            <option value="">Nenhum imóvel específico</option>
+            {o.imoveis.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nome}
               </option>

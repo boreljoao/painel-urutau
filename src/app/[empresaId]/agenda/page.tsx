@@ -32,6 +32,7 @@ import { NOME_LEMBRETE, lembreteDevido, semAvisoRepetido, textoLembrete } from "
 import { urlPublica } from "@/servidor/instagram";
 import { eq as igual } from "drizzle-orm";
 import { obterDb } from "@/db";
+import { opcoesDeImoveis } from "@/lib/servidor/imobiliaria";
 import { agentesWhatsapp } from "@/db/schema";
 import { reais } from "@/componentes/formato";
 import { BotaoAcao } from "@/componentes/vivos";
@@ -107,6 +108,7 @@ export default async function Agenda({
   const seg = segundaDe(dia);
   const podeMarcar = pode(ctx.papel, "lancar");
   const revenda = ctx.empresa.perfil === "revenda_veiculos";
+  const imobiliaria = ctx.empresa.perfil === "imobiliaria";
   const tipo = revenda && TIPOS.some((t) => t.id === sp.tipo) ? (sp.tipo as TipoComercial) : undefined;
   const filtros = {
     dia: dia === hj ? undefined : dia,
@@ -121,13 +123,14 @@ export default async function Agenda({
   const inicioMes = segundaDe(primeiroDoMes);
   const periodoDe = ver === "mes" ? inicioMes : seg;
   const periodoAte = somarDias(periodoDe, ver === "mes" ? 41 : 6);
-  const [semanaToda, opcoes, proximos, doMesTodo, patio, vendidos] = await Promise.all([
+  const [semanaToda, opcoes, proximos, doMesTodo, patio, vendidos, carteira] = await Promise.all([
     listarAgenda(empresaId, seg, somarDias(seg, 7)),
     abrindo ? opcoesDaAgenda(empresaId) : null,
     listarAgenda(empresaId, hj, somarDias(hj, 31)),
     ver === "mes" ? listarAgenda(empresaId, inicioMes, somarDias(inicioMes, 42)) : null,
     revenda ? carrosNoPatio(empresaId) : [],
     revenda ? vendidosEntre(empresaId, periodoDe, periodoAte) : [],
+    imobiliaria ? opcoesDeImoveis(obterDb(), empresaId) : [],
   ]);
   // Filtro do calendário comercial: os bloqueios ficam sempre; "Vendas" mostra só as vendas.
   const doTipo = <T extends { servico: string; status: string }>(l: T[]) =>
@@ -137,12 +140,17 @@ export default async function Agenda({
   const mostrarVendas = revenda && (!tipo || tipo === "vendas");
   const vendasPorDia = new Map<Data, typeof vendidos>();
   if (mostrarVendas) for (const c of vendidos) if (c.vendidoEm) vendasPorDia.set(c.vendidoEm, [...(vendasPorDia.get(c.vendidoEm) ?? []), c]);
-  const nomeCarro = new Map([...patio, ...vendidos].map((c) => [c.id, [c.modelo, c.ano].filter(Boolean).join(" ")]));
+  // O que a visita envolve: o carro (revenda) ou o imóvel (imobiliária).
+  const nomeCarro = new Map([
+    ...[...patio, ...vendidos].map((c) => [c.id, [c.modelo, c.ano].filter(Boolean).join(" ")] as const),
+    ...carteira.map((i) => [i.id, `${i.codigo} · ${i.bairro || i.titulo}`] as const),
+  ]);
   const contagemTipo = (t: TipoComercial) =>
     t === "vendas"
       ? vendidos.filter((c) => c.vendidoEm && c.vendidoEm >= seg && c.vendidoEm < somarDias(seg, 7)).length
       : semanaToda.filter((a) => ocupa(a.status) && a.status !== "bloqueado" && tipoDe(a.servico) === t).length;
   const veiculosJanela = revenda ? patio.map((c) => ({ id: c.id, nome: [c.modelo, c.ano, c.placa].filter(Boolean).join(" · ") })) : undefined;
+  const imoveisJanela = imobiliaria ? carteira.filter((i) => i.status !== "vendido").map((i) => ({ id: i.id, nome: `${i.codigo} · ${i.titulo}${i.bairro ? ` (${i.bairro})` : ""}` })) : undefined;
 
   const porDia = new Map<Data, LinhaAgenda[]>();
   for (const a of semana) porDia.set(a.data, [...(porDia.get(a.data) ?? []), a]);
@@ -190,8 +198,10 @@ export default async function Agenda({
             observacao: a.observacao,
             online: a.online ? "1" : "",
             veiculoId: a.veiculoId ?? "",
+            imovelId: a.imovelId ?? "",
           }}
           veiculos={veiculosJanela}
+          imoveis={imoveisJanela}
           semOnline={revenda}
           clientes={opcoes.clientes}
           servicos={[...new Set([...opcoes.servicos, ...cfg.servicos])]}
@@ -247,6 +257,7 @@ export default async function Agenda({
           aposSalvar={aposSalvar}
           rotuloServico={cfg.rotuloServico}
           veiculos={veiculosJanela}
+          imoveis={imoveisJanela}
           semOnline={revenda}
         />
       );
@@ -509,7 +520,7 @@ export default async function Agenda({
                               {a.origem === "online" && <em className="marcacao-online">online</em>}
                             </strong>
                             <span className="marcacao-det">
-                              {[a.serieId ? `${a.servico || cfg.atendimento} recorrente` : a.servico, a.veiculoId ? nomeCarro.get(a.veiculoId) : "", a.online ? "Online" : "", a.profissional].filter(Boolean).join(" · ") || `${a.duracaoMin} min`}
+                              {[a.serieId ? `${a.servico || cfg.atendimento} recorrente` : a.servico, a.veiculoId ? nomeCarro.get(a.veiculoId) : "", a.imovelId ? nomeCarro.get(a.imovelId) : "", a.online ? "Online" : "", a.profissional].filter(Boolean).join(" · ") || `${a.duracaoMin} min`}
                             </span>
                           </>
                         )}
@@ -678,7 +689,7 @@ export default async function Agenda({
                       <span className={`pilula situacao-${a.status}`}>{NOME_STATUS[a.status]}</span>
                     </p>
                     <p className="atendimento-det">
-                      {[a.servico, a.veiculoId ? nomeCarro.get(a.veiculoId) : "", a.profissional && `com ${a.profissional}`, a.sala, a.valorCentavos ? reais(a.valorCentavos) : ""].filter(Boolean).join(" · ") ||
+                      {[a.servico, a.veiculoId ? nomeCarro.get(a.veiculoId) : "", a.imovelId ? nomeCarro.get(a.imovelId) : "", a.profissional && `com ${a.profissional}`, a.sala, a.valorCentavos ? reais(a.valorCentavos) : ""].filter(Boolean).join(" · ") ||
                         `${a.duracaoMin} min`}
                     </p>
                     {a.observacao && <p className="nota">{a.observacao}</p>}

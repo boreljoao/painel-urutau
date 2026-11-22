@@ -22,6 +22,8 @@ import { Contador, Entrada, GraficoMeses, Medidor } from "@/componentes/vivos";
 import { pulsoDaEmpresa } from "./pulso";
 import { VisaoLoja } from "./VisaoLoja";
 import { VisaoRevenda } from "./VisaoRevenda";
+import { VisaoImobiliaria } from "./VisaoImobiliaria";
+import { corDoPerfil } from "@/servidor/marca";
 
 export const metadata = { title: "Visão geral" };
 export const dynamic = "force-dynamic";
@@ -269,6 +271,7 @@ export default async function VisaoGeral({
             };
 
   const revenda = empresa.perfil === "revenda_veiculos";
+  const imobiliaria = empresa.perfil === "imobiliaria";
   // A loja abre na operação do dia (só no mês atual; meses passados ficam com o resumo de sempre).
   const loja = empresa.perfil === "varejo" && ehAtual;
   const blocoGrafico = (
@@ -446,7 +449,17 @@ export default async function VisaoGeral({
             grafico={blocoGrafico}
           />
         )}
-        {!vazia && !revenda && !loja && (
+        {!vazia && imobiliaria && (
+          <VisaoImobiliaria
+            empresaId={empresaId}
+            mes={mes}
+            faturamento={r.faturamento}
+            cor={corDoPerfil(empresa.perfil).cor}
+            atividade={blocoAtividade}
+            grafico={blocoGrafico}
+          />
+        )}
+        {!vazia && !revenda && !loja && !imobiliaria && (
           <>
             <Link
               href={`${base}/vendas${ehAtual ? "" : `?mes=${mes}`}`}

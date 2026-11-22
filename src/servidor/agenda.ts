@@ -23,6 +23,7 @@ const colunas = {
   online: agendamentos.online,
   serieId: agendamentos.serieId,
   veiculoId: agendamentos.veiculoId,
+  imovelId: agendamentos.imovelId,
   tokenPaciente: agendamentos.tokenPaciente,
   lembretes: agendamentos.lembretes,
   respondidoEm: agendamentos.respondidoEm,
@@ -105,7 +106,7 @@ export async function resumoDaAgenda(empresaId: string) {
 export async function proximosCompromissos(empresaId: string, dias = 7, limite = 6) {
   const dia = hoje();
   const linhas = await obterDb()
-    .select({ id: agendamentos.id, data: agendamentos.data, hora: agendamentos.hora, nome: agendamentos.nome, servico: agendamentos.servico, status: agendamentos.status, veiculoId: agendamentos.veiculoId })
+    .select({ id: agendamentos.id, data: agendamentos.data, hora: agendamentos.hora, nome: agendamentos.nome, servico: agendamentos.servico, status: agendamentos.status, veiculoId: agendamentos.veiculoId, imovelId: agendamentos.imovelId })
     .from(agendamentos)
     .where(
       and(

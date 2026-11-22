@@ -87,6 +87,7 @@ export const perfilEnum = pgEnum("perfil_empresa", [
   "servicos",
   "alimentacao",
   "contabilidade",
+  "imobiliaria",
 ]);
 export const moduloEnum = pgEnum("modulo", ["financas", "agenda", "estoque", "whatsapp"]);
 /** Por onde a venda entrou. Só "manual" já nasce conferida; as automáticas esperam o check do dono. */
@@ -408,6 +409,8 @@ export const agendamentos = pgTable(
     criadoPor: uuid("criado_por").references(() => usuarios.id, { onDelete: "set null" }),
     /** Revenda: o carro que a visita, o test drive ou a entrega envolve. */
     veiculoId: uuid("veiculo_id").references((): AnyPgColumn => veiculos.id, { onDelete: "set null" }),
+    /** Imobiliária: o imóvel da visita. */
+    imovelId: uuid("imovel_id").references((): AnyPgColumn => imoveis.id, { onDelete: "set null" }),
     /** Sessão a distância (vídeo ou telefone). */
     online: boolean("online").notNull().default(false),
     /** Horários da mesma série semanal (sessão recorrente) têm o mesmo código. */
@@ -1598,6 +1601,177 @@ export const veiculos = pgTable(
   ],
 );
 export type Veiculo = typeof veiculos.$inferSelect;
+
+// ─── Imobiliária ─────────────────────────────────────────────────────────────
+
+export const finalidadeImovelEnum = pgEnum("finalidade_imovel", ["venda", "aluguel", "venda_aluguel"]);
+export const statusImovelEnum = pgEnum("status_imovel", ["disponivel", "reservado", "alugado", "vendido", "suspenso"]);
+export type FinalidadeImovel = (typeof finalidadeImovelEnum.enumValues)[number];
+export type StatusImovel = (typeof statusImovelEnum.enumValues)[number];
+
+/**
+ * Imóvel da carteira. O dono (proprietário) é um cliente da imobiliária. Comissão em pcm
+ * (6% = 6000), como as outras porcentagens do sistema.
+ */
+export const imoveis = pgTable(
+  "imoveis",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    empresaId: uuid("empresa_id")
+      .notNull()
+      .references(() => empresas.id, { onDelete: "cascade" }),
+    /** Código de referência (o que vai no anúncio e na placa: AP-0142). */
+    codigo: text("codigo").notNull(),
+    titulo: text("titulo").notNull(),
+    /** apartamento, casa, cobertura, terreno, sala, loja, galpao, chacara… */
+    tipo: text("tipo").notNull().default("apartamento"),
+    finalidade: finalidadeImovelEnum("finalidade").notNull().default("venda"),
+    status: statusImovelEnum("status").notNull().default("disponivel"),
+    bairro: text("bairro").notNull().default(""),
+    cidade: text("cidade").notNull().default(""),
+    endereco: text("endereco").notNull().default(""),
+    areaM2: integer("area_m2"),
+    quartos: integer("quartos"),
+    suites: integer("suites"),
+    banheiros: integer("banheiros"),
+    vagas: integer("vagas"),
+    precoVendaCentavos: centavos("preco_venda_centavos"),
+    aluguelCentavos: centavos("aluguel_centavos"),
+    condominioCentavos: centavos("condominio_centavos"),
+    iptuCentavos: centavos("iptu_centavos"),
+    /** Diferenciais curtos: "Vista mar", "Piscina", "Aceita pet"… */
+    destaques: jsonb("destaques").$type<string[]>().notNull().default([]),
+    fotos: jsonb("fotos").$type<string[]>().notNull().default([]),
+    descricao: text("descricao").notNull().default(""),
+    proprietarioId: uuid("proprietario_id"),
+    corretor: text("corretor").notNull().default(""),
+    comissaoPcm: integer("comissao_pcm").notNull().default(6000),
+    exclusivo: boolean("exclusivo").notNull().default(false),
+    captadoEm: date("captado_em").notNull(),
+    fechadoEm: date("fechado_em"),
+    criadoPor: uuid("criado_por").references(() => usuarios.id, { onDelete: "set null" }),
+    criadoEm: criadoEm(),
+    atualizadoEm: atualizadoEm(),
+    excluidoEm: excluidoEm(),
+  },
+  (t) => [
+    unique("imoveis_empresa_id_uq").on(t.empresaId, t.id),
+    uniqueIndex("imoveis_codigo_uq").on(t.empresaId, t.codigo).where(sql`${t.excluidoEm} is null`),
+    foreignKey({ name: "imoveis_proprietario_fk", columns: [t.empresaId, t.proprietarioId], foreignColumns: [clientes.empresaId, clientes.id] }),
+    index("imoveis_empresa_status_idx").on(t.empresaId, t.status),
+    check("imoveis_valores", sql`coalesce(${t.precoVendaCentavos}, 0) >= 0 and coalesce(${t.aluguelCentavos}, 0) >= 0 and ${t.comissaoPcm} between 0 and 100000`),
+  ],
+);
+export type Imovel = typeof imoveis.$inferSelect;
+
+export const etapaNegocioEnum = pgEnum("etapa_negocio", ["lead", "atendimento", "visita", "proposta", "fechado", "perdido"]);
+export type EtapaNegocio = (typeof etapaNegocioEnum.enumValues)[number];
+
+/** Um interessado no funil: do primeiro contato ao fechamento (ou perda, com o motivo). */
+export const negociosImoveis = pgTable(
+  "negocios_imoveis",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    empresaId: uuid("empresa_id")
+      .notNull()
+      .references(() => empresas.id, { onDelete: "cascade" }),
+    clienteId: uuid("cliente_id").notNull(),
+    imovelId: uuid("imovel_id"),
+    /** compra ou locacao */
+    tipo: text("tipo").notNull().default("compra"),
+    etapa: etapaNegocioEnum("etapa").notNull().default("lead"),
+    /** Valor do negócio (proposta ou preço pedido). */
+    valorCentavos: centavos("valor_centavos"),
+    /** Portal, site, indicação, placa, WhatsApp, Instagram… */
+    origem: text("origem").notNull().default(""),
+    corretor: text("corretor").notNull().default(""),
+    /** O que o cliente procura, nas palavras dele. */
+    procura: text("procura").notNull().default(""),
+    proximoPasso: text("proximo_passo").notNull().default(""),
+    proximoEm: date("proximo_em"),
+    motivoPerda: text("motivo_perda"),
+    vendaId: uuid("venda_id").references(() => vendas.id, { onDelete: "set null" }),
+    etapaDesde: timestamp("etapa_desde", { withTimezone: true }).notNull().defaultNow(),
+    fechadoEm: date("fechado_em"),
+    criadoPor: uuid("criado_por").references(() => usuarios.id, { onDelete: "set null" }),
+    criadoEm: criadoEm(),
+    atualizadoEm: atualizadoEm(),
+    excluidoEm: excluidoEm(),
+  },
+  (t) => [
+    foreignKey({ name: "negocios_cliente_fk", columns: [t.empresaId, t.clienteId], foreignColumns: [clientes.empresaId, clientes.id] }),
+    foreignKey({ name: "negocios_imovel_fk", columns: [t.empresaId, t.imovelId], foreignColumns: [imoveis.empresaId, imoveis.id] }),
+    index("negocios_empresa_etapa_idx").on(t.empresaId, t.etapa),
+  ],
+);
+
+/**
+ * Contrato de locação administrado pela imobiliária. A taxa de administração (pcm sobre o
+ * aluguel) é a receita da imobiliária; o resto é repassado ao proprietário.
+ */
+export const contratosLocacao = pgTable(
+  "contratos_locacao",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    empresaId: uuid("empresa_id")
+      .notNull()
+      .references(() => empresas.id, { onDelete: "cascade" }),
+    imovelId: uuid("imovel_id").notNull(),
+    inquilinoId: uuid("inquilino_id").notNull(),
+    proprietarioId: uuid("proprietario_id"),
+    inicio: date("inicio").notNull(),
+    fim: date("fim").notNull(),
+    aluguelCentavos: centavos("aluguel_centavos").notNull(),
+    taxaAdmPcm: integer("taxa_adm_pcm").notNull().default(10000),
+    diaVencimento: integer("dia_vencimento").notNull().default(10),
+    /** IGP-M, IPCA… (o reajuste é anual, no mês de aniversário do contrato). */
+    indice: text("indice").notNull().default("IGP-M"),
+    /** Caução, fiador, seguro-fiança, título de capitalização. */
+    garantia: text("garantia").notNull().default(""),
+    encerradoEm: date("encerrado_em"),
+    criadoPor: uuid("criado_por").references(() => usuarios.id, { onDelete: "set null" }),
+    criadoEm: criadoEm(),
+    atualizadoEm: atualizadoEm(),
+    excluidoEm: excluidoEm(),
+  },
+  (t) => [
+    unique("contratos_empresa_id_uq").on(t.empresaId, t.id),
+    foreignKey({ name: "contratos_imovel_fk", columns: [t.empresaId, t.imovelId], foreignColumns: [imoveis.empresaId, imoveis.id] }),
+    foreignKey({ name: "contratos_inquilino_fk", columns: [t.empresaId, t.inquilinoId], foreignColumns: [clientes.empresaId, clientes.id] }),
+    foreignKey({ name: "contratos_proprietario_fk", columns: [t.empresaId, t.proprietarioId], foreignColumns: [clientes.empresaId, clientes.id] }),
+    index("contratos_empresa_idx").on(t.empresaId, t.fim),
+    check("contratos_valores", sql`${t.aluguelCentavos} > 0 and ${t.taxaAdmPcm} between 0 and 100000 and ${t.diaVencimento} between 1 and 28 and ${t.fim} > ${t.inicio}`),
+  ],
+);
+export type ContratoLocacao = typeof contratosLocacao.$inferSelect;
+
+/**
+ * O aluguel de um mês: recebido do inquilino e repassado ao proprietário. Ao receber, a taxa de
+ * administração vira venda da imobiliária (vendaId). Um por contrato e mês.
+ */
+export const alugueisMes = pgTable(
+  "alugueis_mes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    empresaId: uuid("empresa_id")
+      .notNull()
+      .references(() => empresas.id, { onDelete: "cascade" }),
+    contratoId: uuid("contrato_id").notNull(),
+    /** AAAA-MM */
+    competencia: text("competencia").notNull(),
+    aluguelCentavos: centavos("aluguel_centavos").notNull(),
+    taxaAdmCentavos: centavos("taxa_adm_centavos").notNull(),
+    recebidoEm: date("recebido_em"),
+    repassadoEm: date("repassado_em"),
+    vendaId: uuid("venda_id").references(() => vendas.id, { onDelete: "set null" }),
+    criadoEm: criadoEm(),
+  },
+  (t) => [
+    foreignKey({ name: "alugueis_contrato_fk", columns: [t.empresaId, t.contratoId], foreignColumns: [contratosLocacao.empresaId, contratosLocacao.id] }).onDelete("cascade"),
+    uniqueIndex("alugueis_contrato_mes_uq").on(t.contratoId, t.competencia),
+    check("alugueis_competencia", sql`${t.competencia} ~ '^[0-9]{4}-[0-9]{2}$'`),
+  ],
+);
 
 // ─── Estoque e caixa (PDV) ───────────────────────────────────────────────────
 

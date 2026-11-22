@@ -22,6 +22,12 @@ export interface EventoOperacao {
 const TEXTO: Record<string, { texto: string; icone: NomeIcone; link?: (id: string | null) => string | null }> = {
   "venda.registrar": { texto: "Venda registrada", icone: "carrinho", link: (id) => (id ? `vendas?editar=${id}` : "vendas") },
   "venda.pdv": { texto: "Venda no caixa", icone: "carrinho", link: () => "caixa" },
+  "imovel.captar": { texto: "Imóvel captado", icone: "predio", link: (id) => (id ? `imoveis?editar=${id}` : "imoveis") },
+  "negocio.criar": { texto: "Novo interessado no funil", icone: "funil", link: (id) => (id ? `negocios?editar=${id}` : "negocios") },
+  "negocio.fechar": { texto: "Negócio fechado", icone: "check", link: () => "negocios" },
+  "locacao.contrato": { texto: "Contrato de locação assinado", icone: "chave", link: () => "locacoes" },
+  "locacao.receber": { texto: "Aluguel recebido", icone: "vendas", link: () => "locacoes" },
+  "locacao.repassar": { texto: "Repasse ao proprietário", icone: "enviar", link: () => "locacoes" },
   "recuperacao.contato": { texto: "Cliente chamado de volta", icone: "telefone", link: () => "recuperar" },
   "recuperacao.resultado": { texto: "Resultado de contato marcado", icone: "check", link: () => "recuperar" },
   "venda.conferir": { texto: "Venda conferida", icone: "check", link: () => "vendas" },
@@ -47,7 +53,7 @@ const TEXTO: Record<string, { texto: string; icone: NomeIcone; link?: (id: strin
   "cliente.criar": { texto: "Cliente cadastrado", icone: "pessoa", link: () => "clientes" },
 };
 
-const PREFIXOS = ["venda.", "despesa.", "estoque.", "agenda.", "patio.", "caixa.", "recuperacao.contato", "recuperacao.resultado", "cliente.criar", "conta.pagar", "parcela.pagar"];
+const PREFIXOS = ["venda.", "despesa.", "estoque.", "agenda.", "patio.", "caixa.", "recuperacao.contato", "recuperacao.resultado", "imovel.captar", "negocio.criar", "negocio.fechar", "locacao.", "cliente.criar", "conta.pagar", "parcela.pagar"];
 
 export async function atividadeRecente(db: BancoDeDados, empresaId: string, limite = 6): Promise<EventoOperacao[]> {
   const linhas = await db

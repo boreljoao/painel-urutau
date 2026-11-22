@@ -43,6 +43,63 @@ export interface Pacote {
 }
 
 export const PACOTES: Record<Perfil, Pacote> = {
+  imobiliaria: {
+    perfil: "imobiliaria",
+    nome: "Imobiliária",
+    frase: "Carteira de imóveis, interessados no funil, visitas, locações e repasses.",
+    palavras: ["imobiliaria", "imoveis", "imovel", "corretor", "corretora", "corretagem", "aluguel", "alugueis", "locacao", "apartamento", "casa", "terreno", "lancamento", "creci", "administradora"],
+    vocab: { vendas: "Receitas", clientes: "Clientes" },
+    abas: [
+      {
+        id: "imoveis",
+        titulo: "Imóveis",
+        desc: "A carteira, com ficha pronta para mandar",
+        icone: "predio",
+        rota: "imoveis",
+        vaiTer: ["Cada imóvel com código, fotos, metragem e valores", "Venda, aluguel ou os dois", "Ficha pronta para o WhatsApp", "Quantos interessados e visitas cada um teve"],
+      },
+      {
+        id: "negocios",
+        titulo: "Funil de negócios",
+        desc: "Do primeiro contato ao fechamento",
+        icone: "funil",
+        rota: "negocios",
+        vaiTer: ["Interessados por etapa: contato, atendimento, visita, proposta", "Próximo passo e data de cada um", "Fechar lança a comissão no financeiro", "Por que os negócios se perdem"],
+      },
+      {
+        id: "visitas",
+        titulo: "Visitas",
+        desc: "Agenda dos corretores, imóvel por imóvel",
+        icone: "agenda",
+        rota: "agenda",
+        vaiTer: ["Visitas com cliente, corretor e imóvel", "Lembrete para o cliente", "Quantas visitas cada imóvel recebeu"],
+      },
+      {
+        id: "locacoes",
+        titulo: "Locações",
+        desc: "Contratos, aluguéis do mês e repasses",
+        icone: "chave",
+        rota: "locacoes",
+        vaiTer: ["Contratos ativos com vencimento e reajuste", "Aluguéis do mês: recebidos e atrasados", "Repasse ao proprietário já descontada a taxa", "Contratos que vencem em 90 dias"],
+      },
+    ],
+    categoriasExtras: [
+      { nome: "Portais de anúncio", comportamento: "fixo" },
+      { nome: "Comissão de corretores", comportamento: "variavel" },
+      { nome: "Fotos e vídeos dos imóveis", comportamento: "variavel" },
+    ],
+    fiscal: { atividade: "servicos", anexoServicos: "III" },
+    destaques: ["Imóveis na carteira", "Funil de negócios", "Aluguéis e repasses do mês"],
+    agenda: {
+      inicio: 8,
+      fim: 19,
+      duracao: 60,
+      pessoa: "Cliente",
+      atendimento: "Visita",
+      servicos: ["Visita ao imóvel", "Captação", "Avaliação", "Assinatura de contrato", "Vistoria de entrada", "Vistoria de saída", "Entrega de chaves"],
+      rotuloServico: "Tipo",
+    },
+  },
   revenda_veiculos: {
     perfil: "revenda_veiculos",
     nome: "Revenda de veículos",

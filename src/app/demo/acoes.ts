@@ -26,6 +26,6 @@ export async function abrirDemo(perfil: Perfil) {
   // Consultório abre na agenda; os outros ramos, na Visão geral.
   if (perfil === "consultorio") redirect(`/${empresaId}/agenda`);
   // A loja abre na operação do dia (vendas de hoje, caixa, estoque).
-  if (perfil === "varejo") redirect(`/${empresaId}`);
+  if (perfil === "varejo" || perfil === "imobiliaria") redirect(`/${empresaId}`);
   redirect(Number(hoje().slice(8)) < 15 ? `/${empresaId}?mes=${somarMeses(mesAtual(), -1)}` : `/${empresaId}`);
 }

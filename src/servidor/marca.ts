@@ -12,6 +12,7 @@ const CORES: Record<Perfil, { cor: string; clara: string }> = {
   alimentacao: { cor: "#9a3b1b", clara: "#f6e5de" },
   contabilidade: { cor: "#3d3a8c", clara: "#e8e7f6" },
   financas: { cor: "#141b34", clara: "#e5e7ef" },
+  imobiliaria: { cor: "#16506a", clara: "#e2edf2" },
 };
 
 export const corDoPerfil = (perfil: Perfil) => CORES[perfil] ?? CORES.financas;

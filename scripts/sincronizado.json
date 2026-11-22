@@ -1,7 +1,7 @@
 {
  "db/index.ts": "54a89e44e306eec8f39a06b6683a1a932462eabc9e80450e27f1ee4757f15576",
  "db/padroes.ts": "242040983bf7eaa1ee20a76368f96779ff1d7438be2ea564564c426973d71bb5",
- "db/schema.ts": "f5f9207c8b407dccb1349099b4210ced2626c4bef20f05f77c86daebd5be1216",
+ "db/schema.ts": "23c75a108434c6a1b0a05cb1dba2307b6a0bcaaa1658534c64a19a951eac5e82",
  "lib/atendimento.ts": "a0ebd6d6b117821913696978c10d961ee34b40d1e11f9040dd4ed5ca49575308",
  "lib/calculos/dividas.ts": "6a0cc5f231ccfad937d4442c0030082ee05f2c33a5c724838c8758a9ba54ebbb",
  "lib/calculos/folha.ts": "cbf98478db771ddb5cbb911f99ccad81027dd4a702f6c5e396aca3011097cb51",
@@ -19,7 +19,8 @@
  "lib/dinheiro.ts": "2cde19db34fea97fb65f95df79c8d640e56f14f2a9e91ec8b4e68b06def41942",
  "lib/estado-form.ts": "9d112e7e4cc1dafcdc58fd8852b4c46e5d8e2a8a4831f7e34febac770a9bfb9d",
  "lib/estoque.ts": "fb4bbdb3d69e423a7e1ce590db8211748ff1d14afc56f632a7565c4bcfd6609c",
- "lib/perfis.ts": "4315f096c4135953b0cf7482039d5ed36588d5c931b10312a4629ad3fdb24818",
+ "lib/imobiliaria.ts": "47948e36c377c3b470bc57c295d244fced2f1231873cdffdf6cddccbd4c57d36",
+ "lib/perfis.ts": "978672914c6aa952fe20dd21210532c9f67c300eacd92cd8f045274adc726d67",
  "lib/permissoes.ts": "06428be1c32f1a4758d87d2278105b63abbe89528730aac5a1bf3a055d112d7a",
  "lib/recuperacao.ts": "8a8928c60f26d61c049e181aea83dc0017cd5c68e04a379775b3f3ab5c7da78d",
  "lib/rotulos.ts": "236d9c1be74ad68c8a927b8952c5cea05f049ed9588fe13c2f34ae5dd96baf29",
@@ -40,6 +41,7 @@
  "lib/servidor/estoque.ts": "8b8a3a13a8f46c7748568b4ba26cb4f73de9510d65304b40dd5a6eb6551660b0",
  "lib/servidor/fiscal.ts": "fc450d332992ecdbcd552cd920dafd5f8c262523db47ab49ebe4a0c8db23ad10",
  "lib/servidor/folha.ts": "f0cc39d2c6f4baabb079fcdcb886c8c16eb3a43632e82bb036ebe5890f5ce730",
+ "lib/servidor/imobiliaria.ts": "fc68bec8c5e50e21fdf68b1f318a5e4c67a8ddf147a16a500a6414ee3229ab9f",
  "lib/servidor/lancamentos.ts": "2969c45e1b3d94e7b1b1ac6292625418ac717424686d316986e2af2903207170",
  "lib/servidor/limites.ts": "99e1a56b5f8bf5a807cf955dc8adefc85b7f44fb999c8170e1a3a33c54877774",
  "lib/servidor/painel.ts": "d63d8b7ac7150108f0746e83a567321fba2e601586adf6e399d4671d820ca74f",
@@ -48,5 +50,5 @@
  "lib/servidor/segredos.ts": "ced285d49073c241c85889e1066bb3ebb34050dc71d97c86f6518261e43b8536",
  "lib/servidor/tarefas.ts": "5f92a2d8f0b6a815c40d1fea0629a5c4c6f386932dc7ca40ee4fe33a5fc4582c",
  "lib/textos-dividas.ts": "357e7159d71f6b5c73096eb84b9f641610e3eb628a25f4c41463aaf4201886cc",
- "lib/validacao.ts": "2aa922809255c8263b7ce39e63784a4a17c19793fcfb3655cdebd64b33da0203"
+ "lib/validacao.ts": "ff36755931fa831da3dd5106523ebff1dca44c15af1cede7dc36fa784589876f"
 }

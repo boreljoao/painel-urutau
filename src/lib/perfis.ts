@@ -72,6 +72,18 @@ export const PERFIS: Record<Perfil, DefinicaoPerfil> = {
     ],
     atividadeSugerida: "comercio",
   },
+  imobiliaria: {
+    nome: "Imobiliária",
+    descricao: "Carteira de imóveis, funil de interessados, visitas, locações e repasses.",
+    modulos: ["financas", "agenda", "whatsapp"],
+    fontes: [
+      { nome: "Comissão de venda", natureza: "servico" },
+      { nome: "Taxa de administração", natureza: "servico" },
+      { nome: "Comissão de locação", natureza: "servico" },
+      { nome: "Avaliações e laudos", natureza: "servico" },
+    ],
+    atividadeSugerida: "servicos",
+  },
   contabilidade: {
     nome: "Contabilidade",
     descricao: "Carteira de clientes, documentos prontos e calendário de obrigações.",
@@ -84,7 +96,7 @@ export const PERFIS: Record<Perfil, DefinicaoPerfil> = {
   },
 };
 
-export const ORDEM_PERFIS: Perfil[] = ["revenda_veiculos", "consultorio", "varejo", "servicos", "alimentacao", "contabilidade", "financas"];
+export const ORDEM_PERFIS: Perfil[] = ["imobiliaria", "revenda_veiculos", "consultorio", "varejo", "servicos", "alimentacao", "contabilidade", "financas"];
 
 export const NOME_MODULO: Record<Modulo, string> = {
   financas: "Finanças",
@@ -99,6 +111,7 @@ export const TODOS_MODULOS: Modulo[] = ["financas", "agenda", "estoque", "whatsa
 export function telaDoModulo(perfil: Perfil, modulo: Exclude<Modulo, "financas">): { titulo: string; desc: string } {
   const veiculos = perfil === "revenda_veiculos";
   const consultorio = perfil === "consultorio";
+  if (modulo === "agenda" && perfil === "imobiliaria") return { titulo: "Visitas", desc: "Visitas aos imóveis, com corretor e cliente" };
   if (modulo === "agenda")
     return veiculos
       ? { titulo: "Visitas e test drive", desc: "Horários marcados pelo atendente e pela equipe" }

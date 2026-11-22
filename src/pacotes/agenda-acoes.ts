@@ -13,6 +13,7 @@ import { errosPorCampo, formParaObjeto, normalizarTelefone, valorEmReais } from 
 import { exigirPermissao } from "@/servidor/acesso";
 import { agendamentoDaEmpresa, listarAgenda } from "@/servidor/agenda";
 import { veiculoDaEmpresa } from "@/servidor/patio";
+import { imovelDaEmpresa } from "@/lib/servidor/imobiliaria";
 import { agendaDoPacote } from "./catalogo";
 import { choques, horaValida } from "./agenda";
 
@@ -123,6 +124,8 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
   const online = !bloquear && valores.online === "1";
   // Revenda: o carro do pátio que a visita, o test drive ou a entrega envolve.
   const veiculoId = !bloquear && valores.veiculoId && (await veiculoDaEmpresa(empresaId, String(valores.veiculoId))) ? String(valores.veiculoId) : null;
+  // Imobiliária: o imóvel da visita (conferido: só da própria empresa).
+  const imovelId = !bloquear && valores.imovelId && z.uuid().safeParse(valores.imovelId).success && (await imovelDaEmpresa(obterDb(), empresaId, String(valores.imovelId))) ? String(valores.imovelId) : null;
   const repetir = !id && !bloquear ? Math.min(Math.max(Number(valores.repetir) || 1, 1), 52) : 1;
   const dados = {
     data: d.data,
@@ -137,6 +140,7 @@ export async function salvarAgendamento(empresaId: string, id: string | null, _:
     observacao: d.observacao,
     online,
     veiculoId,
+    imovelId,
   };
   const db = obterDb();
   if (id) {

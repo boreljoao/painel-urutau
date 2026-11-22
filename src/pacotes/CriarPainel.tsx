@@ -15,6 +15,7 @@ const AREAS: { id: string; nome: string; perfil: Perfil | null; especialidade?: 
   { id: "psicologia", nome: "Psicologia", perfil: "consultorio", especialidade: "psicologia" },
   { id: "odontologia", nome: "Odontologia", perfil: "consultorio", especialidade: "odontologia" },
   { id: "saude", nome: "Clínica ou outra área da saúde", perfil: "consultorio", especialidade: "outra" },
+  { id: "imobiliaria", nome: "Imobiliária e corretores", perfil: "imobiliaria" },
   { id: "revenda", nome: "Revenda de veículos", perfil: "revenda_veiculos" },
   { id: "loja", nome: "Loja e varejo", perfil: "varejo" },
   { id: "alimentacao", nome: "Confeitaria, restaurante e alimentação", perfil: "alimentacao" },
