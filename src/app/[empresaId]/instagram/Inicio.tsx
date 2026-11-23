@@ -6,6 +6,7 @@ import { ETIQUETA, LEGENDA_CALENDARIO, NOME_FORMATO, dataCurta, dataNoCalendario
 import { Icone } from "@/componentes/Icone";
 import { planejarSemanaAcao, postsAoVivo } from "./acoes";
 import { CartaoPost, Conexao, Metricas, Miniatura, type Post, Selo } from "./Componentes";
+import { presente } from "@/componentes/presente";
 
 type Aba = "calendario" | "conteudos" | "desempenho";
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -36,7 +37,7 @@ export function Inicio({ empresaId, inicial, conta, podeLigar }: { empresaId: st
 
   useEffect(() => {
     atualizar();
-    const t = setInterval(() => document.visibilityState === "visible" && atualizar(), 3000);
+    const t = setInterval(() => presente() && atualizar(), 3000);
     return () => clearInterval(t);
   }, [atualizar]);
 

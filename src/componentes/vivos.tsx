@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Icone, type NomeIcone } from "./Icone";
 import { reais, reaisCurto } from "./formato";
+import { presente } from "./presente";
 
 interface ApiGraficos {
   line: (el: HTMLElement, o: Record<string, unknown>) => void;
@@ -218,11 +219,11 @@ export function BotaoAcao({ acao, rotulo, icone = "check", classe = "botao-peque
 
 export const BotaoConferir = ({ acao }: { acao: () => Promise<{ erro?: string } | void> }) => <BotaoAcao acao={acao} rotulo="Conferir" />;
 
-/** Telas que mudam sozinhas (o WhatsApp): busca de novo a cada tantos segundos, só com a aba visível. */
+/** Telas que mudam sozinhas (o WhatsApp): busca de novo a cada tantos segundos, só com alguém olhando. */
 export function AtualizarSozinho({ segundos }: { segundos: number }) {
   const router = useRouter();
   useEffect(() => {
-    const t = setInterval(() => document.visibilityState === "visible" && router.refresh(), segundos * 1000);
+    const t = setInterval(() => presente() && router.refresh(), segundos * 1000);
     return () => clearInterval(t);
   }, [router, segundos]);
   return null;

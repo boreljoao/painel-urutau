@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { presente, quandoVoltar } from "./presente";
 
 /**
  * Mantém a tela em dia sem recarregar: pergunta o "pulso" da empresa e, quando muda, pede ao
@@ -10,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
  * `data-vivo="<id>:<versão>"` que mudaram ganham um destaque rápido.
  *
  * Mostra "Ao vivo" enquanto a conexão responde; se cair, o horário da última atualização.
+ * Só pergunta com alguém olhando (ver presente.ts): parado há 10 minutos, para até a pessoa voltar.
  */
 export function AoVivo({ pulso, intervalo = 8000, rotulo = "Ao vivo" }: { pulso: () => Promise<string>; intervalo?: number; rotulo?: string }) {
   const router = useRouter();
@@ -44,7 +46,7 @@ export function AoVivo({ pulso, intervalo = 8000, rotulo = "Ao vivo" }: { pulso:
   useEffect(() => {
     let parado = false;
     const tick = async () => {
-      if (document.visibilityState !== "visible") return;
+      if (!presente()) return;
       try {
         const p = await pulso();
         if (parado) return;
@@ -61,9 +63,11 @@ export function AoVivo({ pulso, intervalo = 8000, rotulo = "Ao vivo" }: { pulso:
     const voltar = () => document.visibilityState === "visible" && tick();
     document.addEventListener("visibilitychange", voltar);
     window.addEventListener("online", voltar);
+    const largar = quandoVoltar(tick);
     return () => {
       parado = true;
       clearInterval(t);
+      largar();
       document.removeEventListener("visibilitychange", voltar);
       window.removeEventListener("online", voltar);
     };

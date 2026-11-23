@@ -10,6 +10,7 @@ import { NOME_FORMATO, doCampoData, paraCampoData } from "@/lib/instagram/rotulo
 import { Icone } from "@/componentes/Icone";
 import { type FormularioPost, editarTexto, gerarPost, postsAoVivo, salvarRascunhoAcao } from "../acoes";
 import { Conexao, Envio, Etapas, Metricas, type Post, Selo } from "../Componentes";
+import { presente } from "@/componentes/presente";
 
 const PASSOS = ["Materiais", "Conteúdo", "Revisão", "Publicação"] as const;
 const FORMATOS: FormatoPostInstagram[] = ["post", "carrossel", "reel", "story"];
@@ -77,7 +78,7 @@ export function NovoPost({
   }, [empresaId, id]);
 
   useEffect(() => {
-    const t = setInterval(() => document.visibilityState === "visible" && atualizar(), 2000);
+    const t = setInterval(() => presente() && atualizar(), 2000);
     return () => clearInterval(t);
   }, [atualizar]);
 
