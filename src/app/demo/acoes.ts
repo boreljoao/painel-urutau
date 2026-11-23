@@ -19,7 +19,8 @@ export async function abrirDemo(perfil: Perfil) {
   }
   // Cada demonstração cria conta e empresa de verdade no banco: freio por IP e teto do dia.
   // 20 por hora: numa apresentação de vendas a mesma rede abre vários ramos seguidos.
-  if (!(await freioPorIp("demo", 20, 60 * 60)) || !(await freio("demo:total", 400, 24 * 60 * 60))) redirect("/demo?limite=1");
+  // ("demo-v2": contador novo, o antigo somava os cliques recusados e travou quem insistiu.)
+  if (!(await freioPorIp("demo-v2", 20, 60 * 60)) || !(await freio("demo:total", 400, 24 * 60 * 60))) redirect("/demo?limite=1");
   // Quem estava numa conta sai dela: a demonstração é outra conta.
   if (atual) await encerrarSessao();
   try {

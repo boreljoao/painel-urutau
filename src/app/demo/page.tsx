@@ -6,6 +6,7 @@ import { RAMOS_DEMO, nomeDoExemplo } from "@/servidor/demo";
 import { corDoPerfil } from "@/servidor/marca";
 import { abrirDemo } from "./acoes";
 import { RodapeLegal } from "../legal";
+import { LimparEndereco } from "./LimparEndereco";
 
 export const metadata = { title: "Painel de exemplo" };
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function Demo({ searchParams }: { searchParams: Promise<{ l
         {limite && (
           <p className="nota aviso-demo" role="alert">
             Muitos exemplos abertos agora. Espere um pouco e tente de novo, ou crie a sua conta.
+            <LimparEndereco />
           </p>
         )}
         {emOutraConta && <p className="nota aviso-demo">Você vai sair da conta de {usuario.nome.split(" ")[0]} para abrir o exemplo.</p>}

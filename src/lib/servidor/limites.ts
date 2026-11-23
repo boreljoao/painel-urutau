@@ -7,6 +7,8 @@ import { limitesUso } from "@/db/schema";
  * Conta uma tentativa na janela e diz se ainda cabe. Atômico (um INSERT … ON CONFLICT): dois
  * pedidos ao mesmo tempo não passam os dois do limite, e vale entre servidores diferentes.
  * A chave já vem montada (ex.: "login:ip:1.2.3.4", "ia:empresa:<id>").
+ * Tentativa recusada não soma: a conta para em max + 1. Assim, se o limite subir, quem estava
+ * bloqueado por ter insistido volta a passar na hora, sem esperar a janela.
  */
 export async function consumirLimite(db: BancoDeDados, chave: string, max: number, janelaSegundos: number): Promise<boolean> {
   const janela = sql`make_interval(secs => ${janelaSegundos})`;
@@ -16,7 +18,7 @@ export async function consumirLimite(db: BancoDeDados, chave: string, max: numbe
     .onConflictDoUpdate({
       target: limitesUso.chave,
       set: {
-        contagem: sql`case when ${limitesUso.inicio} < now() - ${janela} then 1 else ${limitesUso.contagem} + 1 end`,
+        contagem: sql`case when ${limitesUso.inicio} < now() - ${janela} then 1 else least(${limitesUso.contagem} + 1, ${max + 1}) end`,
         inicio: sql`case when ${limitesUso.inicio} < now() - ${janela} then now() else ${limitesUso.inicio} end`,
       },
     })

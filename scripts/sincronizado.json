@@ -43,7 +43,7 @@
  "lib/servidor/folha.ts": "f0cc39d2c6f4baabb079fcdcb886c8c16eb3a43632e82bb036ebe5890f5ce730",
  "lib/servidor/imobiliaria.ts": "fc68bec8c5e50e21fdf68b1f318a5e4c67a8ddf147a16a500a6414ee3229ab9f",
  "lib/servidor/lancamentos.ts": "2969c45e1b3d94e7b1b1ac6292625418ac717424686d316986e2af2903207170",
- "lib/servidor/limites.ts": "99e1a56b5f8bf5a807cf955dc8adefc85b7f44fb999c8170e1a3a33c54877774",
+ "lib/servidor/limites.ts": "3c5cbd5e2eb772e474fdb2927518b36623f5e62b912de8175d2c92228616e457",
  "lib/servidor/painel.ts": "d63d8b7ac7150108f0746e83a567321fba2e601586adf6e399d4671d820ca74f",
  "lib/servidor/parametros.ts": "60c7aa9b6583c434c3a48786fb2290f25d4ee4562e1cf8d09547cea28ce0f764",
  "lib/servidor/recuperacao.ts": "b7e27f4614147293b485246557978e0878081bce37e6ccdf4616e3cfa27a6e0b",
