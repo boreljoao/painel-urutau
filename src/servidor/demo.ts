@@ -191,6 +191,17 @@ export async function limparDemos() {
   await db.delete(usuarios).where(inArray(usuarios.id, velhas));
 }
 
+/** A empresa de exemplo desse ramo que o visitante já tem aberta (para reabrir sem criar outra). */
+export async function demoAberta(usuarioId: string, perfil: Perfil): Promise<string | null> {
+  const [e] = await obterDb()
+    .select({ id: empresas.id })
+    .from(empresaUsuarios)
+    .innerJoin(empresas, eq(empresas.id, empresaUsuarios.empresaId))
+    .where(and(eq(empresaUsuarios.usuarioId, usuarioId), eq(empresas.perfil, perfil)))
+    .limit(1);
+  return e?.id ?? null;
+}
+
 /** Cria uma conta de visitante com uma empresa de exemplo do ramo, cheia de lançamentos. */
 export async function criarDemo(perfil: Perfil): Promise<{ usuarioId: string; empresaId: string }> {
   const x = EXEMPLOS[perfil];
