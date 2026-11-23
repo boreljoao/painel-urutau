@@ -4462,3 +4462,8 @@ ul.lista-escolha,
 @media (prefers-reduced-motion: reduce) {
   .imovel-card, .imovel-capa svg, .imovel-capa img, .im-funil-barra span { transition: none; }
 }
+
+/* Demo com ramo em destaque (/demo?ramo=…): o ramo do link vem primeiro, maior. */
+.demo-foco button { padding-block: 1.1rem; box-shadow: 0 0 0 2px var(--cor) inset; }
+.demo-foco button strong::after { content: "  Abrir o exemplo →"; font-weight: 500; font-size: 0.85em; color: var(--cor); }
+.demo-outros { margin: 1rem 0 0.25rem; }

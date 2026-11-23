@@ -17,10 +17,10 @@ export async function abrirDemo(perfil: Perfil) {
     const aberta = await demoAberta(atual.id, perfil);
     if (aberta) redirect(destino(perfil, aberta));
   }
-  // Cada demonstração cria conta e empresa de verdade no banco: freio por IP e teto do dia.
-  // 20 por hora: numa apresentação de vendas a mesma rede abre vários ramos seguidos.
-  // ("demo-v2": contador novo, o antigo somava os cliques recusados e travou quem insistiu.)
-  if (!(await freioPorIp("demo-v2", 20, 60 * 60)) || !(await freio("demo:total", 400, 24 * 60 * 60))) redirect("/demo?limite=1");
+  // Cada demonstração cria conta e empresa de verdade no banco. O link é mandado para clientes pelo
+  // WhatsApp (o Vini manda para várias pessoas), então o freio só segura robô: 60 por hora na mesma
+  // rede e 1.000 por dia no total. Ninguém abre 60 exemplos por hora com a mão.
+  if (!(await freioPorIp("demo-v2", 60, 60 * 60)) || !(await freio("demo:total", 1000, 24 * 60 * 60))) redirect("/demo?limite=1");
   // Quem estava numa conta sai dela: a demonstração é outra conta.
   if (atual) await encerrarSessao();
   try {

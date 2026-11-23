@@ -19,6 +19,20 @@ export interface ItemMenu {
   foraDaBarra?: boolean;
 }
 
+/**
+ * Item que aponta para um trecho da tela em que a pessoa já está (Impostos = Financeiro#impostos):
+ * o Next não rola de novo quando o endereço não muda, então rola aqui.
+ */
+function irParaTrecho(ev: React.MouseEvent, href: string, caminho: string) {
+  const [rota, trecho] = href.split("#");
+  if (!trecho || rota !== caminho) return;
+  const alvo = document.getElementById(trecho);
+  if (!alvo) return;
+  ev.preventDefault();
+  window.history.replaceState(null, "", href);
+  alvo.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
 /** O menu da barra lateral, em seções; no celular vira a barra de baixo. */
 export function Menu({ itens, selos }: { itens: ItemMenu[]; selos: Record<string, number> }) {
   const caminho = usePathname();
@@ -37,6 +51,7 @@ export function Menu({ itens, selos }: { itens: ItemMenu[]; selos: Record<string
                 key={i.href}
                 href={i.href}
                 aria-current={i === ativo ? "page" : undefined}
+                onClick={(ev) => irParaTrecho(ev, i.href, caminho)}
                 className={[i.doNegocio && "do-negocio", i.naBarra && "na-barra", i.foraDaBarra && "fora-da-barra"].filter(Boolean).join(" ") || undefined}
               >
                 {i === ativo && <motion.span layoutId="menu-ativo" className="menu-ativo" transition={{ type: "spring", stiffness: 500, damping: 40 }} aria-hidden />}

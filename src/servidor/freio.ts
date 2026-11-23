@@ -12,7 +12,8 @@ import { consumirLimite } from "@/lib/servidor/limites";
 /** IP de quem chamou. Na Vercel, o primeiro de x-forwarded-for é o que a própria Vercel viu. */
 export async function ipDaRequisicao() {
   const h = await headers();
-  return h.get("x-real-ip")?.trim() || h.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  // Na Vercel, x-vercel-forwarded-for é o IP de quem acessou (não dá para falsificar de fora).
+  return h.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || h.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
 }
 
 /** true = pode seguir. Se o banco falhar, deixa passar (o freio não pode derrubar o login). */
@@ -27,7 +28,10 @@ export async function freio(chave: string, max: number, janelaSegundos: number) 
 
 /** Freio por IP: `nome` separa os contadores (login, cadastro, demo…). */
 export async function freioPorIp(nome: string, max: number, janelaSegundos: number) {
-  return freio(`${nome}:ip:${await ipDaRequisicao()}`, max, janelaSegundos);
+  const ip = await ipDaRequisicao();
+  // Sem IP conhecido, todo mundo cairia no mesmo contador e um bloquearia o outro: aí não freia por IP.
+  if (ip === "local") return true;
+  return freio(`${nome}:ip:${ip}`, max, janelaSegundos);
 }
 
 /** Conta de demonstração não chama IA paga, não publica e não sobe arquivos (bloqueio no servidor). */
