@@ -4467,3 +4467,33 @@ ul.lista-escolha,
 .demo-foco button { padding-block: 1.1rem; box-shadow: 0 0 0 2px var(--cor) inset; }
 .demo-foco button strong::after { content: "  Abrir o exemplo →"; font-weight: 500; font-size: 0.85em; color: var(--cor); }
 .demo-outros { margin: 1rem 0 0.25rem; }
+
+/* Simulador de financiamento (imobiliária) */
+.fin-grade { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+.fin-bancos { grid-column: 1 / -1; }
+.fin-topo { display: flex; flex-wrap: wrap; gap: 24px; padding-bottom: 14px; border-bottom: 1px solid var(--linha, var(--tom)); }
+.fin-topo span { display: grid; gap: 2px; }
+.fin-topo small { color: var(--suave); font-size: 0.8rem; }
+.fin-topo strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.fin-sistemas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.fin-sistema { padding: 14px; border-radius: 14px; background: var(--tom); display: grid; gap: 4px; align-content: start; }
+.fin-sistema h3 { margin: 0; font-size: 1rem; }
+.fin-sistema .nota { margin: 0 0 6px; }
+.fin-parcela { font-size: 1.7rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.fin-sistema > small { color: var(--suave); }
+.fin-sistema dl { margin: 10px 0 0; display: grid; gap: 6px; }
+.fin-sistema dl div { display: flex; justify-content: space-between; gap: 8px; font-size: 0.88rem; }
+.fin-sistema dt { color: var(--suave); }
+.fin-sistema dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.fin-sistema.nao-cabe { box-shadow: inset 0 0 0 1.5px var(--ruim, #b42318); }
+.fin-avisos { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 6px; }
+.fin-avisos li { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; }
+.fin-avisos svg { flex: none; margin-top: 2px; color: var(--ruim, #b42318); }
+.fin-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.fin-taxa { width: 4.5em; text-align: right; font: inherit; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--tom); background: var(--superficie); }
+.fin-bancos tbody tr { cursor: pointer; }
+.fin-escolhido td { background: var(--tom); font-weight: 600; }
+@media (max-width: 860px) {
+  .fin-grade { grid-template-columns: 1fr; }
+  .fin-sistemas { grid-template-columns: 1fr; }
+}

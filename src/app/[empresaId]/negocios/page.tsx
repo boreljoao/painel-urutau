@@ -91,6 +91,10 @@ export default async function Negocios({ params, searchParams }: { params: Promi
             fechar: fecharNegocioAcao.bind(null, empresaId, n.id),
             comissaoPadrao: n.tipo === "locacao" ? "100" : String((n.comissaoPcm ?? 6000) / 1000).replace(".", ","),
             whatsapp: n.telefone ? `https://wa.me/${n.telefone}` : null,
+            simular:
+              n.tipo === "compra"
+                ? `/${empresaId}/financiamento?${new URLSearchParams({ cliente: n.cliente, ...(n.valorCentavos ? { valor: centavosParaInput(n.valorCentavos) } : {}), ...(n.telefone ? { telefone: n.telefone } : {}) })}`
+                : null,
           }}
         />
       );

@@ -19,6 +19,7 @@
  "lib/dinheiro.ts": "2cde19db34fea97fb65f95df79c8d640e56f14f2a9e91ec8b4e68b06def41942",
  "lib/estado-form.ts": "9d112e7e4cc1dafcdc58fd8852b4c46e5d8e2a8a4831f7e34febac770a9bfb9d",
  "lib/estoque.ts": "fb4bbdb3d69e423a7e1ce590db8211748ff1d14afc56f632a7565c4bcfd6609c",
+ "lib/financiamento.ts": "ad404ada3977d593d1e5dd9f04a72790823a463adea6073b2e514e5e5b8d3de6",
  "lib/imobiliaria.ts": "47948e36c377c3b470bc57c295d244fced2f1231873cdffdf6cddccbd4c57d36",
  "lib/perfis.ts": "978672914c6aa952fe20dd21210532c9f67c300eacd92cd8f045274adc726d67",
  "lib/permissoes.ts": "06428be1c32f1a4758d87d2278105b63abbe89528730aac5a1bf3a055d112d7a",

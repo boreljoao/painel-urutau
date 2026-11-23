@@ -20,6 +20,8 @@ interface Edicao {
   fechar: AcaoForm;
   comissaoPadrao: string;
   whatsapp: string | null;
+  /** Link para o simulador de financiamento já preenchido (só negócio de compra). */
+  simular?: string | null;
 }
 
 interface Opcoes {
@@ -66,6 +68,13 @@ export function JanelaNegocio(o: Opcoes) {
             <Icone nome="whatsapp" /> Conversar no WhatsApp
           </a>
         </div>
+      )}
+      {o.edicao?.simular && (
+        <p className="largo">
+          <a className="botao-pequeno botao-pequeno-apagado" href={o.edicao.simular}>
+            <Icone nome="banco" /> Simular financiamento
+          </a>
+        </p>
       )}
       {aberto && o.edicao && <Etapas e={o.edicao} />}
       {aberto && o.edicao && <Fechar e={o.edicao} valor={o.inicial.valor} hoje={o.hoje} />}

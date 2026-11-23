@@ -82,6 +82,14 @@ export const PACOTES: Record<Perfil, Pacote> = {
         rota: "locacoes",
         vaiTer: ["Contratos ativos com vencimento e reajuste", "Aluguéis do mês: recebidos e atrasados", "Repasse ao proprietário já descontada a taxa", "Contratos que vencem em 90 dias"],
       },
+      {
+        id: "financiamento",
+        titulo: "Financiamento",
+        desc: "Simula as parcelas e manda ao cliente",
+        icone: "banco",
+        rota: "financiamento",
+        vaiTer: ["Parcelas no SAC e no Price", "Renda mínima e quanto dá para financiar", "Comparação entre bancos com as taxas do dia", "Simulação pronta para o WhatsApp"],
+      },
     ],
     categoriasExtras: [
       { nome: "Portais de anúncio", comportamento: "fixo" },
